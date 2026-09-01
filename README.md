@@ -66,3 +66,43 @@ This commit is a temporary documentation update. Use the commit message prefix `
 Contact / Notes
 ---------------
 When you're ready I will update the detector to a selected model, run evaluation (if you provide real sample images), and update this README with results and screenshots.
+
+**Repository Structure**
+
+The current repository layout (top-level files and folders):
+
+```
+detecto/
+├── backend/
+│   ├── .env.example
+	│   ├── eval/
+│   ├── main.py
+	├── requirements.txt
+	├── routes/
+	│   ├── detect.py
+	│   └── history.py
+	├── tests/
+	│   └── test_detect.py
+	└── utils/
+		 ├── detector.py
+		 └── storage.py
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   ├── public/
+│   │   └── samples/
+│   │       └── README.md
+│   └── src/
+│       ├── App.jsx
+│       ├── main.jsx
+│       ├── styles.css
+		 └── pages/
+			  ├── Detection.jsx
+			  └── History.jsx
+├── src/
+├── tests/
+├── .gitignore
+└── README.md
+```
+
+If you want the tree in a different format (Mermaid or plain list), tell me and I'll update it.
