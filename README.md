@@ -1,0 +1,3 @@
+# detecto
+
+Project scaffold placeholder.
