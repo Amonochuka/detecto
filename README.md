@@ -105,4 +105,3 @@ detecto/
 └── README.md
 ```
 
-If you want the tree in a different format (Mermaid or plain list), tell me and I'll update it.
