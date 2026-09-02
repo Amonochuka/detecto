@@ -44,7 +44,61 @@ The `__init__.py` files turn `backend/`, `routes/`, `utils/`, and `tests/` into 
 
 ---
 
-## 3. How to run it
+## 3. Dependencies and imports explained
+
+Below is every import used across the backend, what it is, and why it's there. Understanding these will make the code far less opaque.
+
+### 3.1 Standard library (built into Python — no install needed)
+
+| Import | Where used | What it's for |
+|--------|-----------|---------------|
+| `os` | `main.py` | Reads environment variables (`os.getenv`) — how `.env` config reaches the app. |
+| `pathlib.Path` | `main.py`, `storage.py` | Path handling — locating the `.env` file, and constructing the storage file path. |
+| `time` | `detector.py` | `time.time()` before/after inference to measure `inference_time`. |
+| `base64` | `detector.py` | Encodes the annotated JPEG as a base64 string so it can travel inside JSON. |
+| `io` / `io.BytesIO` | `routes/detect.py`, `detector.py` | Treats raw uploaded bytes as an in-memory file so PIL can open them without touching disk. |
+| `json` | `storage.py` | Serializes/deserializes detection records to the `detections.json` file. |
+| `datetime.datetime` | `storage.py` | Produces the ISO `timestamp` attached to every stored detection. |
+
+### 3.2 Direct third-party imports (from `requirements.txt`)
+
+| Import | Package | What it's for in this project |
+|--------|---------|-------------------------------|
+| `FastAPI`, `APIRouter`, `File`, `UploadFile`, `HTTPException`, `Query` | `fastapi` | The web framework. Creates the app, splits endpoints into routers, validates multipart file uploads, and raises HTTP errors. |
+| `CORSMiddleware` | `fastapi` | Allows the React frontend (configured origin) to call the API from the browser. |
+| `JSONResponse` | `fastapi` | Returns explicit JSON payloads from the routes. |
+| `load_dotenv` | `python-dotenv` | Loads the private `.env` file into environment variables at startup. |
+| `np` (numpy) | `numpy` | Converts PIL images to numeric arrays (the format YOLO expects) and computes the mean confidence. |
+| `Image` | `pillow` (PIL) | Decodes uploaded bytes into an image object and normalizes to RGB. |
+| `cv2` | `opencv-python` | Draws the green bounding boxes and confidence labels (`annotate_image`) and encodes the result to JPEG. |
+| `YOLO` | `ultralytics` | Loads the pretrained YOLOv8n model and runs inference — the core detection engine. |
+| `uvicorn` | `uvicorn` | The ASGI server that actually serves the FastAPI app over HTTP. |
+
+### 3.3 Transitive dependencies (pulled in by ultralytics / fastapi)
+
+You don't import these directly in the code, but some are pinned in `requirements.txt` (torch/torchvision) to guarantee version compatibility, and others arrive transitively:
+
+- **`torch` / `torchvision`** — PyTorch, the deep-learning runtime that ultralytics/YOLOv8 runs on. This is the giant install (several GB, includes CUDA libs). Explicitly pinned because ultralytics needs a compatible pairing.
+- **`matplotlib`** — ultralytics uses it internally for plotting and training visuals. Not pinned (transitive only).
+- **`pandas`, `scipy`, `seaborn`** — ultralytics auxiliary tools (dataset stats, plotting). Not pinned (transitive only).
+- **`pydantic`** — fastapi's data validation engine for request/response models. Pinned in `requirements.txt`.
+
+### 3.4 Dev / test dependencies
+
+| Import | Package | What it's for |
+|--------|---------|---------------|
+| `pytest` | `pytest` | Test runner for `backend/tests/`. |
+| `httpx` | `httpx` | Async HTTP client used by FastAPI's `TestClient` to call endpoints in tests. |
+
+### 3.5 Why opencv and PIL both touch the image?
+
+They fill different roles:
+- **PIL** (`Image`) only *decodes* and normalizes the upload (bytes → RGB image → numpy array).
+- **OpenCV** (`cv2`) both *annotates* (rectangles/labels) and *encodes* (numpy → JPEG bytes).
+
+---
+
+## 4. How to run it
 
 ### Prerequisites
 - Python 3.12+
@@ -79,7 +133,7 @@ Once running:
 
 ---
 
-## 4. Why `.env` and the secrets question
+## 5. Why `.env` and the secrets question
 
 You asked a great question: *"why expose .env variables in main.py yet .env should be private?"*
 
@@ -108,7 +162,7 @@ This is the universal pattern for keeping credentials out of source control: **c
 
 ---
 
-## 5. Configuration variables
+## 6. Configuration variables
 
 Defined in `.env` (root of repo):
 
@@ -121,7 +175,7 @@ Defined in `.env` (root of repo):
 
 ---
 
-## 6. The endpoints
+## 7. The endpoints
 
 ### `GET /`
 Welcome message. Returns `{"message": "Detecto API running"}`.
@@ -181,7 +235,7 @@ Clears all stored detection history. Returns `{"success": true, "message": "Dete
 
 ---
 
-## 7. How detection works (`utils/detector.py`)
+## 8. How detection works (`utils/detector.py`)
 
 The `PersonDetector` class wraps the **YOLOv8** model (Ultralytics), the default being `yolov8n.pt` (the small "nano" variant — good speed/accuracy balance for CPU).
 
@@ -209,7 +263,7 @@ The first time you run it, Ultralytics downloads `yolov8n.pt` (~6 MB) automatica
 
 ---
 
-## 8. How storage works (`utils/storage.py`)
+## 9. How storage works (`utils/storage.py`)
 
 The `DetectionStorage` class persists detection records to a **local JSON file** (`detections.json`) — simple and dependency-free, good enough for this project's scale.
 
@@ -223,7 +277,7 @@ The `DetectionStorage` class persists detection records to a **local JSON file**
 
 ---
 
-## 9. How a request flows through the code
+## 10. How a request flows through the code
 
 1. `main.py` starts FastAPI and registers both routers.
 2. A client hits `POST /api/detect`.
@@ -236,7 +290,7 @@ The `DetectionStorage` class persists detection records to a **local JSON file**
 
 ---
 
-## 10. Testing
+## 11. Testing
 
 The tests live in `backend/tests/test_detect.py` using **pytest** with **httpx** (FastAPI's test client).
 
@@ -250,7 +304,7 @@ Tests cover: loading the detector, running detection on a synthetic image, the `
 
 ---
 
-## 11. Common issues
+## 12. Common issues
 
 | Symptom | Cause / Fix |
 |---------|-------------|
@@ -263,7 +317,7 @@ Tests cover: loading the detector, running detection on a synthetic image, the `
 
 ---
 
-## 12. Design notes / trade-offs
+## 13. Design notes / trade-offs
 
 - **Flat-file JSON storage** — intentionally simple. A real production system would use SQLite/PostgreSQL with concurrency control. Good for this assignment; note it's not safe for heavy concurrent writes.
 - **CPU inference** — `yolov8n.pt` (nano) is chosen so it runs reasonably on CPU. For GPU, swap to a larger model and install the CUDA build of torch.
