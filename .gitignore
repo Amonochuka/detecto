@@ -1,0 +1,32 @@
+# Env
+.env
+.env.local
+
+# YOLO model weights
+*.pt
+
+# Python runtime data
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Backend runtime data
+backend/detections.json
+detections.json
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
