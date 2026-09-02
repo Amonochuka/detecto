@@ -104,7 +104,7 @@ They fill different roles:
 - Python 3.12+
 - A machine capable of running the PyTorch CPU/GPU model (a few GB of RAM/disk).
 
-### Steps
+### First-time setup (only once)
 
 ```bash
 # from the repo root (detecto/)
@@ -113,23 +113,49 @@ source .venv/bin/activate
 pip install -r backend/requirements.txt
 ```
 
-Then run the server two ways:
+This installs all backend dependencies (FastAPI, YOLOv8/ultralytics, OpenCV, PyTorch — the last one is several GB).
+
+### Start the server
+
+Run from the **repo root**:
 
 ```bash
-# Option A — from the repo ROOT (recommended)
-python -m backend.main
-
-# Option B — uvicorn pointing at the module path (from repo root)
 .venv/bin/uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 > **Important:** Always run from the **repo root**, never `cd backend`. The code uses `backend.routes.*` and `backend.utils.*` imports, which only resolve when `backend` is a package visible on the Python path (i.e. your current directory is the repo root).
 
-Once running:
+On first start the YOLO model loads and `yolov8n.pt` (~6 MB) is auto-downloaded, so the server takes a few extra seconds to become ready.
 
-- Interactive API docs: http://localhost:8000/docs (Swagger UI)
-- Health check: http://localhost:8000/health
-- Root message: http://localhost:8000/
+### Verify it's running
+
+| Check | URL | Expected |
+|-------|-----|----------|
+| Health | http://localhost:8000/health | `{"status":"healthy"}` |
+| Root | http://localhost:8000/ | `{"message":"Detecto API running"}` |
+| Interactive API docs (Swagger UI) | http://localhost:8000/docs | clickable interface — safest way to test uploads |
+
+### Test detection with curl
+
+```bash
+curl -X POST http://localhost:8000/api/detect -F "file=@/path/to/image.jpg"
+```
+
+Returns JSON with `count`, `detections` (bounding boxes + confidence), `inference_time`, and an `annotated_image` (base64). For a zero-dependency way to view the annotated image, open the Swagger UI at `/docs`, expand the `POST /api/detect` endpoint, and upload a file — the response there is easy to browse.
+
+### Reference: verified smoke test (this repo's environment)
+
+The following was verified end-to-end on a CPU machine with the default setup:
+
+| Check | Result |
+|-------|--------|
+| Server starts and stays up | ✅ |
+| `GET /health`, `GET /` | ✅ 200 OK |
+| `POST /api/detect` (upload → JSON) | ✅ |
+| Detection history recorded per run | ✅ |
+| Steady-state inference time | ~1.6 s on CPU with the synthetic test image |
+
+> **Note on performance:** measured steady-state inference is ~1.6 s — slightly above the assignment's ≤1.5 s target on plain CPU. Expect much faster on GPU (`yolov8n` is small and CPU-friendly; try `yolov8s/yolov8m` for accuracy if GPU is available). Benchmark with your real 10+ sample images and record the numbers in the README as required.
 
 ---
 
@@ -260,6 +286,43 @@ Key methods:
 - **`image_to_base64(image_array)`** — encodes the annotated image as a JPEG, then base64, so it can travel inside JSON.
 
 The first time you run it, Ultralytics downloads `yolov8n.pt` (~6 MB) automatically.
+
+### 8.1 What the bounding boxes are and why they matter
+
+A bounding box (bbox) is a **rectangle that locates every detected person in the image**, stored as four pixel coordinates in `(x1, y1)` (top-left corner) and `(x2, y2)` (bottom-right corner):
+
+```
+(x1, y1) ┌─────────────┐
+         │             │
+         │    PERSON   │
+         │             │
+         └─────────────┘ (x2, y2)
+```
+
+An example from the `/api/detect` response:
+
+```json
+{ "x1": 50, "y1": 60, "x2": 120, "y2": 200, "confidence": 0.91, "class": "person" }
+```
+
+A detection is **not** "a number of people" — it's *this list of boxes*. The `count` is just derived from `len(detections)`. The bounding boxes play several distinct roles:
+
+1. **They are the actual model output.** YOLO (and most object detectors) don't return "yes there are 3 people". They return *candidate rectangles* classified by objectness. Each box is how the model asserts "there is a person covering this region of the image." Confidence is how sure it is.
+
+2. **They make counting unambiguous.** Each box represents exactly one person, so counting is simply counting boxes. Without boxes, overlapping/occluded people would be impossible to separate — two people side by side are two boxes, not one blob.
+
+3. **They enable the visual overlay.** `annotate_image()` draws the green rectangle + confidence label using exactly these coordinates. The `annotated_image` you get back is the proof-of-detection UI, and the boxes are the data behind it.
+
+4. **They contain spatial information beyond the count.** From the coordinates you can compute:
+   - **Position** — e.g. *is this person in the doorway, the checkout, the restricted zone?* (basis for the "region-based alerts" bonus feature)
+   - **Size / apparent height** — useful for heuristics, e.g. filtering tiny far-away boxes, or flagging someone too close to a fence
+   - **Coverage / crowd density** — what fraction of the frame is occupied
+
+5. **They are stored for later analysis.** Storage keeps the full `detections` array (boxes + confidence) per timestamp, so you can replay *where* people were, not just *how many* — the difference between a table of numbers and a reconstruction of what happened.
+
+6. **They are the input for quality metrics.** The assignment's *False Positive* metric counts "boxes that don't contain a person"; *Accuracy* compares correct boxes to manually counted people. So the requirement `≥ 85% accuracy` and `≤ 10% false positives` are evaluated box-by-box, using these coordinates.
+
+In short: the count is the headline, but **the boxes are the substance** — they're the model's raw answer, the driver of the visual overlay, and the data that powers every spatial feature and metric in the project.
 
 ---
 
