@@ -1,0 +1,272 @@
+# Detecto Backend — Full Documentation
+
+This document explains how the Detecto backend works, how to run it, and the design decisions behind it. Read it top to bottom if you're new to the codebase.
+
+---
+
+## 1. What this backend does
+
+Detecto's backend is a **FastAPI** web service that:
+
+1. Accepts an uploaded image (JPEG/PNG) via HTTP.
+2. Runs a **YOLOv8 person detector** on it.
+3. Returns the number of people, their bounding boxes, and confidence scores.
+4. Draws the boxes on the image and returns an annotated copy.
+5. Logs every detection with a timestamp for later analysis.
+6. Lets you query that history and clear it.
+
+The core flow: **HTTP request → image → YOLO inference → JSON + annotated image → saved to storage.**
+
+---
+
+## 2. Project layout
+
+```
+backend/
+├── main.py              # FastAPI app, CORS, env loading, startup
+├── requirements.txt     # Python dependencies
+├── .env.example         # Template for your private .env (committed)
+├── routes/
+│   ├── __init__.py
+│   ├── detect.py        # POST /api/detect
+│   └── history.py       # GET /api/history, DELETE /api/history
+├── utils/
+│   ├── __init__.py
+│   ├── detector.py      # YOLOv8 person detection + annotation
+│   └── storage.py       # JSON file storage for detection history
+├── tests/
+│   ├── __init__.py
+│   └── test_detect.py   # pytest tests
+└── __init__.py          # makes backend a Python package
+```
+
+The `__init__.py` files turn `backend/`, `routes/`, `utils/`, and `tests/` into **Python packages**. Without them, the relative imports inside `routes/` and `utils/` (e.g. `from ..utils.detector import PersonDetector`) would fail.
+
+---
+
+## 3. How to run it
+
+### Prerequisites
+- Python 3.12+
+- A machine capable of running the PyTorch CPU/GPU model (a few GB of RAM/disk).
+
+### Steps
+
+```bash
+# from the repo root (detecto/)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+Then run the server two ways:
+
+```bash
+# Option A — from the repo ROOT (recommended)
+python -m backend.main
+
+# Option B — uvicorn pointing at the module path (from repo root)
+.venv/bin/uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+> **Important:** Always run from the **repo root**, never `cd backend`. The code uses `backend.routes.*` and `backend.utils.*` imports, which only resolve when `backend` is a package visible on the Python path (i.e. your current directory is the repo root).
+
+Once running:
+
+- Interactive API docs: http://localhost:8000/docs (Swagger UI)
+- Health check: http://localhost:8000/health
+- Root message: http://localhost:8000/
+
+---
+
+## 4. Why `.env` and the secrets question
+
+You asked a great question: *"why expose .env variables in main.py yet .env should be private?"*
+
+The key idea is a **separation between the template and the real values**:
+
+| File | Committed? | Purpose |
+|------|-----------|---------|
+| `.env.example` | ✅ Yes | Documents which config variables exist, with placeholder values. Safe to share. |
+| `.env` | ❌ No (gitignored) | Your private real values. **Never commit this.** |
+| `main.py` | ✅ Yes | *Reads* the values at runtime via `os.getenv()`. Never contains real secrets itself. |
+
+So `main.py` does not "expose" secrets to the public. It reads private values from `.env` (which stays on your machine) and uses them at runtime. Because `.env` is gitignored, the secrets never reach the repository.
+
+```python
+# main.py reads the value; the value itself lives in YOUR private .env
+BACKEND_PORT = int(os.getenv("BACKEND_PORT", 8000))   # default only if unset
+```
+
+**Honest caveat — the defaults are not secrets.** You'll notice `0.0.0.0`, port `8000`, and `localhost:5173` are also written right in `main.py` as fallback defaults. Those are not sensitive; nothing is being hidden there. The indirection earns its keep only once the app has *real* secrets (an API key, a DB password, a model license). Those go **only** in `.env` and never in code. If you hardcode a secret in code, it gets committed and leaked. The pattern keeps all config flowing through one mechanism so sensitive values are trivially kept out of the repo while non-sensitive defaults stay readable.
+
+- `load_dotenv(...)` loads the `.env` file into environment variables at startup.
+- `os.getenv("NAME", default)` returns the value, or `default` if missing.
+- If you deploy to a server, you'd set these same variables in the server's environment instead of a file — the code works either way.
+
+This is the universal pattern for keeping credentials out of source control: **code reads config from the environment; secrets live in the environment (or a gitignored file).**
+
+---
+
+## 5. Configuration variables
+
+Defined in `.env` (root of repo):
+
+| Variable        | Default             | Purpose                                    |
+|-----------------|---------------------|--------------------------------------------|
+| `FASTAPI_ENV`   | `development`       | Runtime environment flag                    |
+| `BACKEND_HOST`  | `0.0.0.0`           | Interface the server binds to (all)         |
+| `BACKEND_PORT`  | `8000`              | Port the server listens on                  |
+| `FRONTEND_URL`  | `http://localhost:5173` | Allowed CORS origin (the React app)     |
+
+---
+
+## 6. The endpoints
+
+### `GET /`
+Welcome message. Returns `{"message": "Detecto API running"}`.
+
+### `GET /health`
+Health check for monitoring. Returns `{"status": "healthy"}`.
+
+### `POST /api/detect`
+Accepts an image file via `multipart/form-data` (field name `file`).
+
+**Request:**
+```
+curl -X POST http://localhost:8000/api/detect \
+  -F "file=@/path/to/image.jpg"
+```
+
+**Response (JSON):**
+```json
+{
+  "success": true,
+  "count": 2,
+  "average_confidence": 0.873,
+  "inference_time": 0.184,
+  "detections": [
+    { "x1": 50, "y1": 60, "x2": 120, "y2": 200, "confidence": 0.91, "class": "person" },
+    { "x1": 180, "y1": 90, "x2": 250, "y2": 210, "confidence": 0.83, "class": "person" }
+  ],
+  "annotated_image": "<base64-encoded JPEG>"
+}
+```
+
+- `count` — number of detected people.
+- `detections` — each person's bounding box (`x1,y1,x2,y2`), confidence, and class.
+- `average_confidence` — mean confidence across detections.
+- `inference_time` — seconds spent running inference (not network/encoding).
+- `annotated_image` — the input image with green boxes + confidence labels, base64-encoded for easy embedding in a web page.
+
+### `GET /api/history?date=YYYY-MM-DD&limit=100`
+Returns past detection records from storage.
+
+- `date` (optional) — only records on that day (`timestamp.startswith(date)`).
+- `limit` (optional, default 100) — returns the most recent N records.
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 2,
+  "detections": [
+    { "timestamp": "2026-09-02T12:00:00.123456", "count": 1, "average_confidence": 0.9, "inference_time": 0.18, "detections": [ ... ] }
+  ]
+}
+```
+
+### `DELETE /api/history`
+Clears all stored detection history. Returns `{"success": true, "message": "Detection history cleared"}`.
+
+---
+
+## 7. How detection works (`utils/detector.py`)
+
+The `PersonDetector` class wraps the **YOLOv8** model (Ultralytics), the default being `yolov8n.pt` (the small "nano" variant — good speed/accuracy balance for CPU).
+
+```python
+class PersonDetector:
+    def __init__(self, model_name="yolov8n.pt"):
+        self.model = YOLO(model_name)      # loads the pretrained weights
+        self.conf_threshold = 0.5          # only keep boxes with confidence >= 0.5
+```
+
+Key methods:
+
+- **`detect(image_source)`** — runs the model on a numpy array / file path / PIL image.
+  1. Times inference with `time.time()`.
+  2. Runs `self.model(image_source, conf=self.conf_threshold)`.
+  3. Loops over detected boxes, keeps only **class 0** (person in the COCO dataset).
+  4. Collects each box's coordinates and confidence.
+  5. Returns a dict: `count`, `detections`, `average_confidence`, `inference_time`.
+
+- **`annotate_image(image_source, detections)`** — draws a green rectangle around each person and writes the confidence score above the box, using OpenCV.
+
+- **`image_to_base64(image_array)`** — encodes the annotated image as a JPEG, then base64, so it can travel inside JSON.
+
+The first time you run it, Ultralytics downloads `yolov8n.pt` (~6 MB) automatically.
+
+---
+
+## 8. How storage works (`utils/storage.py`)
+
+The `DetectionStorage` class persists detection records to a **local JSON file** (`detections.json`) — simple and dependency-free, good enough for this project's scale.
+
+- `init_storage()` — creates the file as `[]` if it doesn't exist.
+- `save_detection(result)` — appends a record with an ISO `timestamp` plus count/confidence/time/boxes.
+- `load_all()` — reads the whole file.
+- `load_by_date(date_str)` — filters records by `YYYY-MM-DD`.
+- `reset()` — overwrites the file with `[]`.
+
+`detections.json` is created in the current working directory when the server runs; it's listed in `.gitignore` so it never gets committed.
+
+---
+
+## 9. How a request flows through the code
+
+1. `main.py` starts FastAPI and registers both routers.
+2. A client hits `POST /api/detect`.
+3. `routes/detect.py` reads the uploaded file bytes.
+4. It opens the bytes as a PIL image and converts to a numpy array.
+5. It calls `detector.detect(...)` → gets people/boxes/confidence/time.
+6. It calls `storage.save_detection(...)` to log it.
+7. It annotates the image and base64-encodes it.
+8. It returns the full JSON payload.
+
+---
+
+## 10. Testing
+
+The tests live in `backend/tests/test_detect.py` using **pytest** with **httpx** (FastAPI's test client).
+
+Run from the repo root:
+
+```bash
+.venv/bin/pytest backend/tests -v
+```
+
+Tests cover: loading the detector, running detection on a synthetic image, the `/api/detect`, `/api/history`, and `DELETE /api/history` endpoints, plus error handling for missing/invalid uploads.
+
+---
+
+## 11. Common issues
+
+| Symptom | Cause / Fix |
+|---------|-------------|
+| `ModuleNotFoundError: backend` | You're running from inside `backend/`. Run from the **repo root**. |
+| Imports not found | Missing `__init__.py` files — ensure they exist in every package dir. |
+| Slow first request | YOLO downloads `yolov8n.pt` on first model load. |
+| Model still loads on CPU | It will; this project runs CPU inference by default. |
+| `detections.json` appears in git | It's gitignored now, but if you created one before adding `.gitignore`, `git rm --cached detections.json` then re-commit. |
+| Port already in use | Change `BACKEND_PORT` in `.env`. |
+
+---
+
+## 12. Design notes / trade-offs
+
+- **Flat-file JSON storage** — intentionally simple. A real production system would use SQLite/PostgreSQL with concurrency control. Good for this assignment; note it's not safe for heavy concurrent writes.
+- **CPU inference** — `yolov8n.pt` (nano) is chosen so it runs reasonably on CPU. For GPU, swap to a larger model and install the CUDA build of torch.
+- **Confidence threshold 0.5** — can be tuned down to find more (often occluded) people, at the risk of more false positives.
+- **CORS restricted** — only the configured frontend origin is allowed, not `*` (hardcoded). This is safer than the original wildcard config.
+- **Detection stats** — `inference_time` and `average_confidence` are logged per record precisely so you can compute the metrics required by the assignment (accuracy, inference time, confidence) across your 10+ test images.
