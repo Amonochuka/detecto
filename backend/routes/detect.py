@@ -7,6 +7,8 @@ from ..utils.detector import PersonDetector
 from ..utils.storage import DetectionStorage
 from ..models.record import DetectResponse, ErrorResponse
 
+from ..utils.perf_log import log_detection
+
 router = APIRouter(prefix="/api", tags=["detection"])
 
 detector = PersonDetector("yolov8s.pt")
@@ -52,6 +54,9 @@ async def detect_people(file: UploadFile = File(...)):
 
     # Run detection
     result = detector.detect(image_array)
+
+    # Log performance metrics
+    log_detection(result["count"], result["average_confidence"], result["inference_time"])
 
     # Save to storage
     storage.save_detection(result)
