@@ -43,13 +43,6 @@ def test_history_limit(client, seeded_storage):
     assert response.json()["count"] == 0
 
 
-def test_delete_history_clears(client, seeded_storage):
-    response = client.delete("/api/history")
-    assert response.status_code == 200
-    assert response.json()["success"] is True
-    assert client.get("/api/history").json()["count"] == 0
-
-
 def test_reset_history_clears(client, seeded_storage):
     response = client.post("/api/reset")
     assert response.status_code == 200

@@ -29,7 +29,7 @@ backend/
 ├── routes/
 │   ├── __init__.py
 │   ├── detect.py        # POST /api/detect
-│   └── history.py       # GET /api/history, DELETE /api/history, POST /api/reset
+│   └── history.py       # GET /api/history, POST /api/reset
 ├── utils/
 │   ├── __init__.py
 │   ├── detector.py      # YOLOv8 person detection + annotation
@@ -256,11 +256,8 @@ Returns past detection records from storage.
 }
 ```
 
-### `DELETE /api/history`
-Clears all stored detection history. Returns `{"success": true, "message": "Detection history cleared"}`.
-
 ### `POST /api/reset`
-Alias of `DELETE /api/history` that clears stored detection history.
+Clears all stored detection history. Returns `{"success": true, "message": "Detection history cleared"}`.
 
 ---
 
@@ -366,7 +363,7 @@ Run from the repo root:
 .venv/bin/pytest backend/tests -v
 ```
 
-Tests cover: loading the detector, running detection on a synthetic image, the `/api/detect`, `/api/history`, `DELETE /api/history`, and `POST /api/reset` endpoints, plus error handling for missing, empty, corrupt, oversized, and unsupported uploads.
+Tests cover: loading the detector, running detection on a synthetic image, the `/api/detect`, `/api/history`, and `POST /api/reset` endpoints, plus error handling for missing, empty, corrupt, oversized, and unsupported uploads.
 
 ---
 

@@ -63,8 +63,7 @@ npm run dev
 | `GET /health` | Health check |
 | `POST /api/detect` | Upload an image (`file` field, JPEG/PNG, ≤ 15 MB). Returns `count`, `detections` (bbox + confidence), `average_confidence`, `inference_time`, `annotated_image` (base64) |
 | `GET /api/history?date=YYYY-MM-DD&limit=100` | Past detections, optional date filter, most recent `limit` |
-| `DELETE /api/history` | Clear detection history |
-| `POST /api/reset` | Alias of the DELETE above |
+| `POST /api/reset` | Clear detection history |
 
 Example detect call:
 
@@ -86,7 +85,7 @@ python -m pytest backend/tests -v    # 12 tests
 
 Covered: valid detection flow and response shape, unsupported type, empty upload,
 corrupt image, missing file, oversized image, empty history, history after a detection,
-date filter, limit, `DELETE /api/history`, and `POST /api/reset`.
+date filter, limit, and `POST /api/reset`.
 
 ## Evaluation & metrics
 
@@ -146,7 +145,7 @@ count the people, and fill the `visible_persons` column to finalise the percenta
 
 ## Current status
 
-- ✅ Backend implemented and tested (12/12): detect + history + reset, upload
+- ✅ Backend implemented and tested (11/11): detect + history + reset, upload
   validation, perf logging, deterministic storage path, lifespan-managed model.
 - ✅ 13 real-world sample images (crowds, crosswalks, night market, snow) in
   `backend/samples/` and `frontend/public/samples/`; benchmark run and README table

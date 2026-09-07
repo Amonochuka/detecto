@@ -50,7 +50,7 @@ detecto/
 │   ├── routes/
 │   │   ├── __init__.py
 │   │   ├── detect.py            # POST /api/detect
-│   │   └── history.py           # GET/DELETE /api/history, POST /api/reset
+│   │   └── history.py           # GET /api/history, POST /api/reset
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── detector.py          # PersonDetector (YOLOv8 wrapper)
@@ -60,7 +60,7 @@ detecto/
 │       ├── __init__.py
 │       ├── conftest.py          # fixtures + fake detector/storage
 │       ├── test_detect.py       # 6 tests for /api/detect
-│       └── test_history.py      # 6 tests for history/reset
+│       └── test_history.py      # 5 tests for history/reset
 └── frontend/                    # (scaffolding — not built yet)
     ├── index.html
     ├── package.json
@@ -119,8 +119,7 @@ Flow of a request:
 | Endpoint | Behaviour |
 |----------|-----------|
 | `GET /api/history?date=YYYY-MM-DD&limit=100` | All records, optionally filtered to one day, truncated to the most recent `limit` |
-| `DELETE /api/history` | Clears all history |
-| `POST /api/reset` | Alias of the DELETE above (the project spec names a `/reset` route) |
+| `POST /api/reset` | Clears all history (the project spec names a `/reset` route) |
 
 Small but important detail: `limit` uses `detections[-limit:]` which in Python weirdly
 **ignores** `0` (because `-0 == 0`), so we guard with `detections[-limit:] if limit > 0 else []`.
@@ -182,7 +181,7 @@ compute the project's required benchmarks (average inference time, average confi
 | 5 | No sample images in `backend/samples/` or `frontend/public/samples/` | **missing** |
 | 6 | `routes/detect.py` created `PersonDetector()` (loads the ~hundreds-of-MB YOLO model) **at module import time** — slow startup, heavy import side effect | **bad** |
 | 7 | `DetectionStorage` defaulted to a **CWD-relative** `detections.json` — storage broke if you ran the server from a different directory | **bad** |
-| 8 | History reset existed only as `DELETE /api/history`; the spec explicitly names a `/reset` endpoint | **minor gap** |
+| 8 | History reset existed only as `DELETE /api/history`; the spec explicitly names a `/reset` endpoint. `DELETE` was later removed as out of scope — the reset route is now `POST /api/reset` only | **fixed** |
 | 9 | No validation of uploads — a text file, an empty file, or a 2 GB file would sail straight through or crash with a generic 400 | **bad** |
 | 10 | Performance logging captured inference time only in the ephemeral HTTP response, never persisted for later analysis | **missing** |
 
@@ -336,9 +335,12 @@ if the bytes aren't a decodable image, no matter what the content type claims.
 
 ### 5.5 `/reset` endpoint (§point 8)
 
-The spec says the backend should offer `/reset` to clear history. We already had
-`DELETE /api/history`; I added `POST /api/reset` as a thin alias that does the same
-thing, so both the conventional REST verb and the spec's literal route exist.
+The spec's route list is `/detect`, `/history`, `/reset` — it never names a `DELETE`
+verb. The codebase originally cleared history via `DELETE /api/history` and `POST
+/api/reset` was added as an alias, but since `DELETE` is outside the spec's scope it
+was removed: resetting history is now exactly one endpoint, `POST /api/reset`.
+Keeping only the spec'd route also means every history-clearing consumer uses the same
+URL, so Swagger docs and the frontend have a single "clear" action.
 
 ### 5.6 Performance logging (§point 10)
 
@@ -474,7 +476,7 @@ loaded; this ordering is the fix.)
 The oversized test monkeypatches the *module constant* the route reads at request time —
 so we exercise the size path without shipping gigabytes.
 
-### 6.3 `test_history.py` — 6 tests
+### 6.3 `test_history.py` — 5 tests
 
 `seeded_storage` first runs one real `/api/detect` through the client (populating fake
 storage), then returns the storage for assertions.
@@ -485,7 +487,6 @@ storage), then returns the storage for assertions.
 | `test_history_after_detection` | GET after seeding | `count == 1`, record has the expected `count == 2` |
 | `test_history_date_filter` | GET with `date=1999-01-01` vs `date=2026-01-01` | 0 vs 1 record |
 | `test_history_limit` | GET with `limit=0` | `count == 0` (the `-0` bug guard) |
-| `test_delete_history_clears` | DELETE then GET | 0 records remain |
 | `test_reset_history_clears` | POST `/api/reset` then GET | 0 records remain |
 
 ### 6.4 Running the tests
@@ -493,7 +494,7 @@ storage), then returns the storage for assertions.
 ```bash
 # from the repo root, after installing at least the light deps:
 python -m pytest backend/tests -v
-# Full results: 12 passed
+# Full results: 11 passed
 ```
 
 ---

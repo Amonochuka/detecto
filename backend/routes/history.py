@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
-from ..models.record import HistoryResponse, ResetResponse, ErrorResponse
+from ..models.record import HistoryResponse, ErrorResponse
 
 router = APIRouter(prefix="/api", tags=["history"])
 
@@ -28,20 +28,9 @@ async def get_history(request: Request, date: str = Query(None), limit: int = Qu
         "detections": detections
     })
 
-@router.delete("/history", response_model=ResetResponse, responses={400: {"model": ErrorResponse}})
-async def reset_history(request: Request):
-    """Clear all detection history"""
-    storage = request.app.state.storage
-    storage.reset()
-    
-    return JSONResponse({
-        "success": True,
-        "message": "Detection history cleared"
-    })
-
 @router.post("/reset")
-async def reset_history_via_post(request: Request):
-    """Clear all detection history (alias of DELETE /api/history)."""
+async def reset_history(request: Request):
+    """Clear all detection history."""
     storage = request.app.state.storage
     storage.reset()
     
