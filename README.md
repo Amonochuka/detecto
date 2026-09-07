@@ -1,32 +1,53 @@
-# detecto
+# Detecto
 
-Real-time person detection and counting — temporary README
+Real-time person detection and counting system. A FastAPI backend runs YOLOv8 person
+detection on uploaded images, returns bounding boxes with confidence scores plus an
+annotated image, and stores every detection with a timestamp for later analysis. A
+React + Vite frontend (see #4) provides the dashboard.
 
-Purpose
--------
-This repository implements a real-time person detection and counting system with a FastAPI backend and a React+Vite frontend. The goal is to accept images or video frames, run person detection, return bounding boxes and confidence scores, and store detection history for analysis.
+## Architecture
 
-Directory layout
-----------------
-- `backend/` — FastAPI app and utilities
-- `frontend/` — React + Vite single-page app
-- `frontend/public/samples/` — put at least 10 sample images for testing
+```
+┌─────────────┐  POST /api/detect   ┌──────────────────────────────┐
+│  React/Vite │ ───────────────────→│  FastAPI backend             │
+│  dashboard  │ ←───────────────────│  - validation                │
+└─────────────┘  JSON + base64 img  │  - YOLOv8 person detection   │
+                                    │  - perf logging + history    │
+                                    └──────────────┬───────────────┘
+                                                   │
+                                          detections.json
+                                          logs/performance.log
+```
 
-Quick setup
------------
-Backend (development):
+- `backend/` — FastAPI app: `/api/detect`, `/api/history`, `/api/reset`; YOLOv8
+  (`utils/detector.py`), JSON-file history (`utils/storage.py`), perf logging
+  (`utils/perf_log.py`).
+- `frontend/` — React + Vite single-page app (Detection + History pages).
+
+See [EXPLAINED.md](EXPLAINED.md) for a full walkthrough of the code, the changes, why
+they were made, and an explanation of every test.
+
+## Setup
+
+Backend requirements are in `requirements.txt` (root, identical to
+`backend/requirements.txt`).
 
 ```bash
-cd backend
-# create a venv and install requirements
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# run the server
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# config (optional; sensible defaults exist)
+cp backend/.env.example backend/.env
+
+# run the server (from the repo root)
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Frontend (development):
+Quick check: `curl http://localhost:8000/health` → `{"status":"healthy"}`.
+Interactive API docs: http://localhost:8000/docs.
+
+Frontend (dev):
 
 ```bash
 cd frontend
@@ -34,74 +55,61 @@ npm install
 npm run dev
 ```
 
-API endpoints
--------------
-- `POST /detect` — accepts an image file (multipart/form-data) and returns JSON with: `count`, `detections` (bbox + confidence), `avg_confidence`. Optionally returns an overlay image (base64).
-- `GET /history` — returns recent detection records.
-- `POST /reset` — clears stored detection history.
+## API endpoints
 
-Where to add samples
---------------------
-Place at least 10 representative images in `frontend/public/samples/` named like `frame1.jpg` ... `frame10.jpg`. Update `backend/eval/ground_truth.json` with visible-person counts for evaluation.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Welcome message |
+| `GET /health` | Health check |
+| `POST /api/detect` | Upload an image (`file` field, JPEG/PNG, ≤ 15 MB). Returns `count`, `detections` (bbox + confidence), `average_confidence`, `inference_time`, `annotated_image` (base64) |
+| `GET /api/history?date=YYYY-MM-DD&limit=100` | Past detections, optional date filter, most recent `limit` |
+| `DELETE /api/history` | Clear detection history |
+| `POST /api/reset` | Alias of the DELETE above |
 
-Evaluation / Metrics (temporary)
---------------------------------
-An evaluation script is provided at `backend/eval/evaluate.py` (if present). It reads sample images and `ground_truth.json` and computes:
-- Detection Accuracy
-- False Positives
-- Average Inference Time
-- Average Confidence
+Example detect call:
 
-Fill `backend/eval/ground_truth.json` with a mapping of sample filename → visible person count before running evaluation.
-
-Placeholders and next edits
----------------------------
-- This README is temporary and will be updated with measured metrics, screenshots, and detailed instructions once tests are run.
-- The detector implementation is a placeholder in `backend/utils/detector.py` — swap in a YOLOv8 or other pretrained model for production accuracy.
-
-Commit & push
--------------
-This commit is a temporary documentation update. Use the commit message prefix `chore:` for repository scaffold or `docs:` for README updates.
-
-Contact / Notes
----------------
-When you're ready I will update the detector to a selected model, run evaluation (if you provide real sample images), and update this README with results and screenshots.
-
-**Repository Structure**
-
-The current repository layout (top-level files and folders):
-
-```
-detecto/
-├── backend/
-│   ├── .env.example
-	│   ├── eval/
-│   ├── main.py
-	├── requirements.txt
-	├── routes/
-	│   ├── detect.py
-	│   └── history.py
-	├── tests/
-	│   └── test_detect.py
-	└── utils/
-		 ├── detector.py
-		 └── storage.py
-├── frontend/
-│   ├── index.html
-│   ├── package.json
-│   ├── public/
-│   │   └── samples/
-│   │       └── README.md
-│   └── src/
-│       ├── App.jsx
-│       ├── main.jsx
-│       ├── styles.css
-		 └── pages/
-			  ├── Detection.jsx
-			  └── History.jsx
-├── src/
-├── tests/
-├── .gitignore
-└── README.md
+```bash
+curl -X POST http://localhost:8000/api/detect -F "file=@sample.jpg"
 ```
 
+Error handling: unreadable/missing files, empty uploads, oversized images (413),
+unsupported types (415), and corrupt payloads (400) are all rejected explicitly.
+
+## Testing
+
+Backend tests run against fake detector/storage, so **no ML stack is required** to run
+them (only fastapi, pillow, numpy, python-multipart, pytest, httpx).
+
+```bash
+python -m pytest backend/tests -v    # 12 tests
+```
+
+Covered: valid detection flow and response shape, unsupported type, empty upload,
+corrupt image, missing file, oversized image, empty history, history after a detection,
+date filter, limit, `DELETE /api/history`, and `POST /api/reset`.
+
+## Evaluation & metrics
+
+The project requires measuring model performance on ≥ 10 sample images. Place samples in
+`frontend/public/samples/` (e.g. `frame1.jpg` … `frame10.jpg`), run detection on each,
+then record:
+
+| Metric | Formula / description | Target |
+|--------|----------------------|--------|
+| Detection Accuracy | Correct detections ÷ total visible persons | ≥ 85 % |
+| False Positives | Non-person detections | ≤ 10 % |
+| Average Inference Time | Mean processing time per image | ≤ 1.5 s |
+| Average Confidence | Mean confidence of valid detections | ≥ 0.7 |
+| System Reliability | All test images processed without errors | 100 % |
+
+_raw numbers accumulate automatically in `backend/logs/performance.log`._
+
+> **Status: pending** — results and screenshots will be added once sample images are
+> provided and the full inference run is completed.
+
+## Current status
+
+- ✅ Backend implemented and tested (12/12): detect + history + reset, upload
+  validation, perf logging, deterministic storage path, lifespan-managed model.
+- ⏳ Frontend: scaffolding only — pages return `null`; the React/Vite dashboard,
+  sample images, screenshots, and the benchmark table are the remaining work.
