@@ -3,19 +3,17 @@ from fastapi.responses import JSONResponse
 import numpy as np
 from PIL import Image, UnidentifiedImageError
 import io
-from ..utils.detector import PersonDetector
-from ..utils.storage import DetectionStorage
 from ..models.record import DetectResponse, ErrorResponse
 
 from ..utils.perf_log import log_detection
 
 router = APIRouter(prefix="/api", tags=["detection"])
 
-detector = PersonDetector("yolov8s.pt")
-storage = DetectionStorage()
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png"}
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
 
 @router.post("/detect", response_model=DetectResponse, responses={400: {"model": ErrorResponse}})
-async def detect_people(file: UploadFile = File(...)):
+async def detect_people(request: Request, file: UploadFile = File(...)):
     """
     Detect people in an uploaded image.
     Returns: count, bounding boxes, confidence scores, and annotated image.

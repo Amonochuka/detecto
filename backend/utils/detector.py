@@ -1,10 +1,7 @@
 import numpy as np
-from pathlib import Path
 import time
 import base64
-from io import BytesIO
 from PIL import Image
-from .preprocessing import preprocess_pipeline, pil_to_numpy
 
 class PersonDetector:
     def __init__(self, model_name="yolov8n.pt"):
@@ -23,6 +20,11 @@ class PersonDetector:
         Returns:
             dict with detections, count, and inference time
         """
+        # Imported lazily so importing this module (or the whole app) stays
+        # cheap — cv2 and the preprocessing pipeline are only needed at runtime.
+        import cv2
+        from .preprocessing import preprocess_pipeline, pil_to_numpy
+
         # Preprocess image
         if isinstance(image_source, str):
             img = cv2.imread(image_source)
