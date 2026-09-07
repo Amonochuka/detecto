@@ -11,7 +11,9 @@ from backend.routes.history import router as history_router
 from backend.utils.detector import PersonDetector
 from backend.utils.storage import DetectionStorage
 
-# Load environment variables from .env (backend directory)
+# Load environment variables. The spec's structure puts .env at the repo root,
+# so check there first; backend/.env is kept as a fallback for dev setups.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 # Read config from the environment. Defaults fall back only when a value is
