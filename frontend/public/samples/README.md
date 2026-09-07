@@ -1,1 +1,0 @@
-Place sample images here.

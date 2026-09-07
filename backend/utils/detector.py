@@ -9,7 +9,9 @@ class PersonDetector:
         # doesn't need the full ML stack at import time.
         from ultralytics import YOLO
         self.model = YOLO(model_name)
-        self.conf_threshold = 0.15
+        # 0.5 balances precision vs recall: low thresholds over-count (noise),
+        # high thresholds miss real people in crowded scenes.
+        self.conf_threshold = 0.5
     
     def detect(self, image_source):
         """

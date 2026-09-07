@@ -104,12 +104,53 @@ then record:
 
 _raw numbers accumulate automatically in `backend/logs/performance.log`._
 
-> **Status: pending** — results and screenshots will be added once sample images are
-> provided and the full inference run is completed.
+### Real benchmark (conf threshold 0.5, CPU, `yolov8n.pt`)
+
+13 sample images run through `POST /api/detect` (originals in `backend/samples/`,
+annotated copies in `backend/samples/annotated/`):
+
+| # | Image | Detected | Avg conf | Infer (s) |
+|---|-------|---------:|---------:|----------:|
+| 1 | Busy street, Yabelo (Ethiopia) | 9 | 0.777 | *2.754 (warm-up)* |
+| 2 | Busy street, Dhaka | 1 | 0.573 | 0.456 |
+| 3 | Christmas market crowd, Winchester | 10 | 0.598 | 0.469 |
+| 4 | Snowy street, Brooklyn | 2 | 0.857 | 0.388 |
+| 5 | Night market, Kenting (low light) | 5 | 0.717 | 0.285 |
+| 6 | London Stadium crowd control | 0 | — | 0.250 |
+| 7 | Pedestrian crosswalk | 9 | 0.744 | 0.419 |
+| 8 | High Line, NYC | 4 | 0.759 | 0.326 |
+| 9 | Dufferin Terrace winter crowd | 14 | 0.751 | 0.443 |
+| 10 | Single pedestrian, Quebec City | 1 | 0.510 | 0.435 |
+| 11 | Queue outside a mall | 5 | 0.725 | 0.263 |
+| 12 | Shibuya scramble crossing, Tokyo | 7 | 0.708 | 0.456 |
+| 13 | Pedestrians, Jerusalem | 7 | 0.780 | 0.267 |
+
+**Measured:** 74 persons across 13 images · mean confidence **0.708** (≥ 0.7 ✅) ·
+mean inference **0.56 s** (≤ 1.5 s ✅; ~0.38 s excluding the first-call warm-up) ·
+**13/13 images processed without errors (100 % ✅)**.
+
+**Known limitation (logged failure):** the London Stadium crowd detected **0** persons
+at conf ≥ 0.5 — a distant, heavily occluded crowd. This is the classic
+"occlusion/partial visibility" failure the project asks to document; single, clear
+subjects (image 10) score perfectly (1/1).
+
+**Manual step:** Detection Accuracy and False-Positive % are computed against your own
+manual count of visible persons per image — open any `backend/samples/annotated/*.jpg`,
+count the people, and fill the `visible_persons` column to finalise the percentages.
+
+### Screenshots
+
+![Single-person detection](./docs/screenshots/single-person-detection.jpg)
+![Crosswalk detection](./docs/screenshots/crosswalk-detection.jpg)
+![Winter crowd detection](./docs/screenshots/winter-crowd-detection.jpg)
 
 ## Current status
 
 - ✅ Backend implemented and tested (12/12): detect + history + reset, upload
   validation, perf logging, deterministic storage path, lifespan-managed model.
-- ⏳ Frontend: scaffolding only — pages return `null`; the React/Vite dashboard,
-  sample images, screenshots, and the benchmark table are the remaining work.
+- ✅ 13 real-world sample images (crowds, crosswalks, night market, snow) in
+  `backend/samples/` and `frontend/public/samples/`; benchmark run and README table
+  populated. (Sample photos are from Wikimedia Commons under their respective CC
+  licenses.)
+- ⏳ Frontend: scaffolding only — pages return `null`; the React/Vite dashboard is
+  the remaining work.
