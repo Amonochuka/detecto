@@ -20,8 +20,8 @@ async def get_history(date: str = Query(None), limit: int = Query(100)):
     else:
         detections = storage.load_all()
     
-    # Apply limit
-    detections = detections[-limit:]
+    # Apply limit (limit <= 0 returns no records)
+    detections = detections[-limit:] if limit > 0 else []
     
     return JSONResponse({
         "success": True,
