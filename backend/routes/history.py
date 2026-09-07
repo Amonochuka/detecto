@@ -39,3 +39,14 @@ async def reset_history():
         "success": True,
         "message": "Detection history cleared"
     })
+
+@router.post("/reset")
+async def reset_history_via_post(request: Request):
+    """Clear all detection history (alias of DELETE /api/history)."""
+    storage = request.app.state.storage
+    storage.reset()
+    
+    return JSONResponse({
+        "success": True,
+        "message": "Detection history cleared"
+    })
