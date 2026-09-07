@@ -347,6 +347,66 @@ per detection to `backend/logs/performance.log` (5 MB max, 3 backups). `/api/det
 calls `log_detection(count, average_confidence, inference_time)` after inference. These
 logs are the raw numbers you'll aggregate for the project's benchmark table (§9).
 
+### 5.7 Confidence threshold and counting (0.15 → 0.5)
+
+Counting accuracy is the product's real job — but bounding boxes are handed out with a
+per-box confidence, and a decision has to be made about what counts as "a person". That
+decision is `self.conf_threshold` in `utils/detector.py`.
+
+When the repo was audited, the threshold had been set very low (0.15). On our 13 real
+sample images that produced **137** "persons" — roughly double what the photos plausibly
+contain. The excess were low-confidence boxes the model attached to background clutter
+(trees, vehicle glass, crowd blurs). It also dragged mean confidence down to **0.526**,
+missing the spec's ≥ 0.7 target, and slowed post-processing to ~1.2 s/image.
+
+I ran a sweep of the threshold against all 13 images:
+
+| conf | persons | avg conf | infer | verdict |
+|------|--------:|---------:|------:|---------|
+| 0.15 | 137 | 0.526 | 1.20 s | noisy, over-counts, fails ≥ 0.7 |
+| 0.30 | 99 | 0.598 | 0.87 s | still noisy |
+| 0.40 | 88 | 0.626 | 0.85 s | borderline |
+| 0.50 | **74** | **0.708** | 0.56 s | ✅ balanced, meets ≥ 0.7 |
+| 0.60 | 55 | 0.605 | 0.38 s | under-counts |
+| 0.70 | 42 | 0.641 | 0.35 s | under-counts |
+
+**0.5 won**: it clears the ≥ 0.7 confidence target, keeps inference well under 1.5 s, and
+gives credible counts (a photo with one clear person → exactly 1). It's also the classic
+default for YOLO person detection.
+
+**The known trade-off** (documented in the README benchmark table): dense crowd images
+still under-count. At 0.5, Shibuya's scramble crossing read 7, the London Stadium crowd
+read 0, and the Dhaka street read 1 — those scenes genuinely contain more people than
+the model reports, mostly distant or half-occluded subjects scoring below 0.5.
+
+**Why not just lower the threshold to fix the crowds?** Because the same relaxation that
+recovers hidden people also admits false boxes (background) → over-counting elsewhere and
+a failing confidence metric. The threshold alone can't win both ways (see §5.8).
+
+### 5.8 Planned next step: `max_det` + size filter (not yet implemented)
+
+This is my proposed fix for the under-counting crowds *without* breaking the confidence
+target, and it has **not** been implemented yet — picked up as a follow-up.
+
+The idea, in plain terms:
+
+1. **`max_det`** — cap the number of boxes returned per image (YOLO accepts `max_det=N`).
+   A real street scene has maybe 50 people, not 300 candidate boxes. When the model
+   produces more candidates than N, keep only the strongest (highest-confidence) N and
+   discard the rest. This kills the tail of weak, repetitive boxes.
+
+2. **Size filter** — before counting, drop any box whose height or width is below a
+   small percentage of the image (e.g. 2–3% of height). Background specks and blurred
+   blobs are almost always tiny; real people — even distant ones — are bigger. This
+   removes the classic "false person" without touching real ones.
+
+Applied together, you can afford to lower the threshold slightly (catch the hidden
+crowd people at ~0.3) and then let the two filters strip the junk, so:
+`lower threshold (recall) + max_det (cap duplicates) + size filter (kill blobs)`.
+
+Status: designed, discussed here, **not coded**. The README currently uses plain
+threshold 0.5 and asks for a manual per-image count to finalise the accuracy/FP numbers.
+
 ---
 
 ## 6. The tests — explained in depth
@@ -478,11 +538,19 @@ Each commit is one logical task, so history is easy to read and easy to revert.
 
 ## 9. What's left to do
 
-1. **10+ sample images** — drop into `frontend/public/samples/` (spec requirement).
-2. **Install full deps** (`pip install -r requirements.txt`) and run real inference.
-3. **Benchmarks** — run evaluation across the samples, fill in the README table
-   (accuracy ≥ 85%, false positives ≤ 10%, inference ≤ 1.5 s, confidence ≥ 0.7,
-   reliability 100%). Real numbers from `backend/logs/performance.log`.
-4. **Frontend** — build the React/Vite dashboard (Detection + History pages).
-5. **Screenshots** — capture 2–3 successful detections for the README.
-6. Validate error paths end-to-end (text file upload, huge file, etc.) from the UI.
+1. **Manual count verification** — open the annotated images in `backend/samples/annotated/`
+   and record the visible persons per image, so README's Accuracy (%) and False Positives (%)
+   can be finalised (ground truth is a human job by design).
+2. **Optional crowd-count fix** — implement `max_det` + size filter (§5.8) to reduce the
+   under-counts in dense crowds without failing the ≥ 0.7 confidence target.
+3. **Frontend** — build the React/Vite dashboard (Detection + History pages). The two pages
+   are still scaffolding (`null`). This is the big remaining piece.
+4. **Screenshots / demo** — capture annotated results in the UI once the frontend exists
+   (a placeholder README uses `backend/samples/annotated/` outputs now).
+5. Validate error paths end-to-end (text file upload, huge file, etc.) from the UI.
+
+Already done since this doc was first written: full deps installed (torch/opencv/ultralytics),
+13 real sample images fetched (crowds, crosswalks, night market, snow) into
+`backend/samples/` and `frontend/public/samples/`, conf threshold tuned to 0.5 with a real
+benchmark run (avg conf 0.708, ~0.56 s/image, 13/13 reliable), README benchmark table +
+screenshots added, and root `.env.example` support added.
