@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Request
 from fastapi.responses import JSONResponse
 import numpy as np
 from PIL import Image
@@ -19,6 +19,9 @@ async def detect_people(file: UploadFile = File(...)):
     Returns: count, bounding boxes, confidence scores, and annotated image.
     """
     try:
+        detector = request.app.state.detector
+        storage = request.app.state.storage
+
         # Read uploaded file
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
