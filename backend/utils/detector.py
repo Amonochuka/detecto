@@ -6,6 +6,7 @@ import time
 import base64
 from io import BytesIO
 from PIL import Image
+from .preprocessing import preprocess_pipeline, pil_to_numpy
 
 class PersonDetector:
     def __init__(self, model_name="yolov8n.pt"):
@@ -21,10 +22,21 @@ class PersonDetector:
         Returns:
             dict with detections, count, and inference time
         """
+        # Preprocess image
+        if isinstance(image_source, str):
+            img = cv2.imread(image_source)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        elif isinstance(image_source, Image.Image):
+            img = pil_to_numpy(image_source)
+        else:
+            img = image_source.copy()
+        
+        img = preprocess_pipeline(img, max_dim=1280, enhance=True, normalize=False)
+        
         start_time = time.time()
         
         # Run inference
-        results = self.model(image_source, conf=self.conf_threshold, iou=0.4)
+        results = self.model(img, conf=self.conf_threshold, iou=0.4)
         inference_time = time.time() - start_time
         
         detections = []
