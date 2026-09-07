@@ -1,6 +1,4 @@
-import cv2
 import numpy as np
-from ultralytics import YOLO
 from pathlib import Path
 import time
 import base64
@@ -10,6 +8,9 @@ from .preprocessing import preprocess_pipeline, pil_to_numpy
 
 class PersonDetector:
     def __init__(self, model_name="yolov8n.pt"):
+        # Imported lazily so the rest of the app (and tests with fakes)
+        # doesn't need the full ML stack at import time.
+        from ultralytics import YOLO
         self.model = YOLO(model_name)
         self.conf_threshold = 0.15
     
@@ -74,6 +75,8 @@ class PersonDetector:
     
     def annotate_image(self, image_source, detections):
         """Add bounding boxes to image"""
+        import cv2
+
         if isinstance(image_source, str):
             img = cv2.imread(image_source)
         elif isinstance(image_source, np.ndarray):
@@ -94,5 +97,7 @@ class PersonDetector:
     
     def image_to_base64(self, image_array):
         """Convert image array to base64"""
+        import cv2
+
         _, buffer = cv2.imencode('.jpg', image_array)
         return base64.b64encode(buffer).decode('utf-8')
