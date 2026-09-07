@@ -5,13 +5,14 @@ from PIL import Image
 import io
 from ..utils.detector import PersonDetector
 from ..utils.storage import DetectionStorage
+from ..models.record import DetectResponse, ErrorResponse
 
 router = APIRouter(prefix="/api", tags=["detection"])
 
-detector = PersonDetector()
+detector = PersonDetector("yolov8s.pt")
 storage = DetectionStorage()
 
-@router.post("/detect")
+@router.post("/detect", response_model=DetectResponse, responses={400: {"model": ErrorResponse}})
 async def detect_people(file: UploadFile = File(...)):
     """
     Detect people in an uploaded image.

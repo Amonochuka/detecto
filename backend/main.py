@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routes.detect import router as detect_router
 from backend.routes.history import router as history_router
+from backend.utils.detector import PersonDetector
 
 # Load environment variables from .env (repo root)
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")

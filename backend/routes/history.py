@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from ..utils.storage import DetectionStorage
+from ..models.record import HistoryResponse, ResetResponse, ErrorResponse
 
 router = APIRouter(prefix="/api", tags=["history"])
 
 storage = DetectionStorage()
 
-@router.get("/history")
+@router.get("/history", response_model=HistoryResponse, responses={400: {"model": ErrorResponse}})
 async def get_history(date: str = Query(None), limit: int = Query(100)):
     """
     Retrieve detection history.
@@ -28,7 +29,7 @@ async def get_history(date: str = Query(None), limit: int = Query(100)):
         "detections": detections
     })
 
-@router.delete("/history")
+@router.delete("/history", response_model=ResetResponse, responses={400: {"model": ErrorResponse}})
 async def reset_history():
     """Clear all detection history"""
     storage.reset()

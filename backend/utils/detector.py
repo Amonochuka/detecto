@@ -10,7 +10,7 @@ from PIL import Image
 class PersonDetector:
     def __init__(self, model_name="yolov8n.pt"):
         self.model = YOLO(model_name)
-        self.conf_threshold = 0.5
+        self.conf_threshold = 0.15
     
     def detect(self, image_source):
         """
@@ -24,7 +24,7 @@ class PersonDetector:
         start_time = time.time()
         
         # Run inference
-        results = self.model(image_source, conf=self.conf_threshold)
+        results = self.model(image_source, conf=self.conf_threshold, iou=0.4)
         inference_time = time.time() - start_time
         
         detections = []
