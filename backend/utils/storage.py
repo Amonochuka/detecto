@@ -3,7 +3,10 @@ from datetime import datetime
 from pathlib import Path
 
 class DetectionStorage:
-    def __init__(self, storage_file="detections.json"):
+    def __init__(self, storage_file=None):
+        # Default to the backend directory so storage works regardless of CWD
+        if storage_file is None:
+            storage_file = Path(__file__).resolve().parent.parent / "detections.json"
         self.storage_file = Path(storage_file)
         self.init_storage()
     
