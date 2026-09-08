@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.routes.detect import router as detect_router
 from backend.routes.history import router as history_router
 from backend.utils.detector import PersonDetector
-from backend.utils.storage import DetectionStorage
+from backend.repositories.json_storage import JsonDetectionRepository
 
 # Load environment variables. The spec's structure puts .env at the repo root,
 # so check there first; backend/.env is kept as a fallback for dev setups.
@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
     # Initialize heavy resources (YOLO model) once at startup
     # rather than at module import time.
     app.state.detector = PersonDetector()
-    app.state.storage = DetectionStorage()
+    app.state.storage = JsonDetectionRepository()
     yield
     # Cleanup resources on shutdown
     del app.state.detector

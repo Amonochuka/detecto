@@ -4,30 +4,23 @@ import base64
 from PIL import Image
 
 class PersonDetector:
-    def __init__(self, model_name="yolov8n.pt"):
-        # Imported lazily so the rest of the app (and tests with fakes)
-        # doesn't need the full ML stack at import time.
+    def __init__(
+        self,
+        model_name="yolov8n.pt",
+        conf_threshold=0.5,
+        max_det=100,
+        min_size_ratio=0.02,
+    ):
         from ultralytics import YOLO
         self.model = YOLO(model_name)
-        # 0.5 balances precision vs recall: low thresholds over-count (noise),
-        # high thresholds miss real people in crowded scenes.
-        self.conf_threshold = 0.5
+        self.conf_threshold = conf_threshold
+        self.max_det = max_det
+        self.min_size_ratio = min_size_ratio
     
     def detect(self, image_source):
-        """
-        Detect people in an image.
-        Args:
-            image_source: numpy array, file path, or PIL Image
-        
-        Returns:
-            dict with detections, count, and inference time
-        """
-        # Imported lazily so importing this module (or the whole app) stays
-        # cheap — cv2 and the preprocessing pipeline are only needed at runtime.
         import cv2
         from .preprocessing import preprocess_pipeline, pil_to_numpy
 
-        # Preprocess image
         if isinstance(image_source, str):
             img = cv2.imread(image_source)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -36,12 +29,19 @@ class PersonDetector:
         else:
             img = image_source.copy()
         
+        h, w = img.shape[:2]
+        min_box_size = max(h, w) * self.min_size_ratio
+        
         img = preprocess_pipeline(img, max_dim=1280, enhance=True, normalize=False)
         
         start_time = time.time()
         
-        # Run inference
-        results = self.model(img, conf=self.conf_threshold, iou=0.4)
+        results = self.model(
+            img,
+            conf=self.conf_threshold,
+            iou=0.4,
+            max_det=self.max_det,
+        )
         inference_time = time.time() - start_time
         
         detections = []
@@ -51,14 +51,18 @@ class PersonDetector:
         for result in results:
             for box in result.boxes:
                 class_id = int(box.cls)
-                # Class 0 is 'person' in COCO dataset
                 if class_id == 0:
+                    x1, y1, x2, y2 = box.xyxy[0]
+                    box_w = float(x2 - x1)
+                    box_h = float(y2 - y1)
+                    
+                    if box_w < min_box_size or box_h < min_box_size:
+                        continue
+                    
                     count += 1
                     conf = float(box.conf)
                     confidences.append(conf)
                     
-                    # Get box coordinates
-                    x1, y1, x2, y2 = box.xyxy[0]
                     detections.append({
                         "x1": float(x1),
                         "y1": float(y1),
@@ -78,7 +82,6 @@ class PersonDetector:
         }
     
     def annotate_image(self, image_source, detections):
-        """Add bounding boxes to image"""
         import cv2
 
         if isinstance(image_source, str):
@@ -100,7 +103,6 @@ class PersonDetector:
         return img
     
     def image_to_base64(self, image_array):
-        """Convert image array to base64"""
         import cv2
 
         _, buffer = cv2.imencode('.jpg', image_array)
