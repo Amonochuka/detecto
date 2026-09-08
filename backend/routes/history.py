@@ -15,12 +15,9 @@ async def get_history(request: Request, date: str = Query(None), limit: int = Qu
     storage = request.app.state.storage
 
     if date:
-        detections = storage.load_by_date(date)
+        detections = storage.get_by_date(date)
     else:
-        detections = storage.load_all()
-    
-    # Apply limit (limit <= 0 returns no records)
-    detections = detections[-limit:] if limit > 0 else []
+        detections = storage.get_all(limit=limit)
     
     return JSONResponse({
         "success": True,
@@ -32,7 +29,7 @@ async def get_history(request: Request, date: str = Query(None), limit: int = Qu
 async def reset_history(request: Request):
     """Clear all detection history."""
     storage = request.app.state.storage
-    storage.reset()
+    storage.clear()
     
     return JSONResponse({
         "success": True,

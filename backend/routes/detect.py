@@ -57,7 +57,7 @@ async def detect_people(request: Request, file: UploadFile = File(...)):
     log_detection(result["count"], result["average_confidence"], result["inference_time"])
 
     # Save to storage
-    storage.save_detection(result)
+    storage.save(result)
 
     # Annotate image
     annotated = detector.annotate_image(image_array, result["detections"])

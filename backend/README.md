@@ -347,7 +347,7 @@ The `DetectionStorage` class persists detection records to a **local JSON file**
 3. `routes/detect.py` reads the uploaded file bytes.
 4. It opens the bytes as a PIL image and converts to a numpy array.
 5. It calls `detector.detect(...)` → gets people/boxes/confidence/time.
-6. It calls `storage.save_detection(...)` to log it.
+6. It calls `storage.save(...)` to log it.
 7. It annotates the image and base64-encodes it.
 8. It returns the full JSON payload.
 

@@ -34,24 +34,24 @@ class FakeDetector:
 
 
 class FakeStorage:
-    """In-memory stand-in for DetectionStorage."""
+    """In-memory stand-in for DetectionRepository."""
 
     def __init__(self):
         self.records = []
 
-    def save_detection(self, detection_result):
-        record = dict(detection_result)
+    def save(self, record):
+        record = dict(record)
         record["timestamp"] = "2026-01-01T12:00:00"
         self.records.append(record)
         return record
 
-    def load_all(self):
-        return self.records
+    def get_all(self, limit=100):
+        return self.records[-limit:] if limit > 0 else []
 
-    def load_by_date(self, date_str):
+    def get_by_date(self, date_str):
         return [r for r in self.records if r["timestamp"].startswith(date_str)]
 
-    def reset(self):
+    def clear(self):
         self.records = []
 
 
@@ -65,7 +65,7 @@ def fake_detector(monkeypatch):
 @pytest.fixture()
 def fake_storage(monkeypatch):
     storage = FakeStorage()
-    monkeypatch.setattr("backend.main.DetectionStorage", lambda: storage)
+    monkeypatch.setattr("backend.main.JsonDetectionRepository", lambda: storage)
     return storage
 
 
