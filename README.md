@@ -178,9 +178,12 @@ count the people, and fill the `visible_persons` column to finalise the percenta
 
 ### Screenshots
 
-![Single-person detection](./docs/screenshots/single-person-detection.jpg)
-![Crosswalk detection](./docs/screenshots/crosswalk-detection.jpg)
-![Winter crowd detection](./docs/screenshots/winter-crowd-detection.jpg)
+Video/dashboard screenshots captured from the running app (Detection view idle, a
+successful crosswalk detection with 13 people boxed, and the History view):
+
+![Detection view](./docs/screenshots/detection-home.jpg)
+![Crosswalk detection result](./docs/screenshots/detection-crosswalk.jpg)
+![History view](./docs/screenshots/history.jpg)
 
 ## Current status
 

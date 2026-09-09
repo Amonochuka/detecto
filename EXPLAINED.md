@@ -553,20 +553,17 @@ Each commit is one logical task, so history is easy to read and easy to revert.
    can be finalised (ground truth is a human job by design).
 2. **Optional crowd-count fix** — implement `max_det` + size filter (§5.8) to reduce the
    under-counts in dense crowds without failing the ≥ 0.7 confidence target.
-3. **Frontend** — build the React/Vite dashboard (Detection + History pages). The two pages
-   are still scaffolding (`null`). This is the big remaining piece.
-4. **Screenshots / demo** — capture annotated results in the UI once the frontend exists
-   (a placeholder README uses `backend/samples/annotated/` outputs now).
-5. Validate error paths end-to-end (text file upload, huge file, etc.) from the UI.
+3. **Push** — the frontend work (see §7 and §10) is local on `main`; push when ready.
 
 Already done since this doc was first written: full deps installed (torch/opencv/ultralytics),
 13 real sample images fetched (crowds, crosswalks, night market, snow) into
 `backend/samples/` and `frontend/public/samples/`, conf threshold tuned to 0.5 with a real
-benchmark run (avg conf 0.708, ~0.56 s/image, 13/13 reliable), README benchmark table +
-screenshots added, root `.env.example` support added, and the **full frontend built and
-integrated** (see §10) with the Vite dev proxy verified end-to-end against the live backend
-(detect, history, reset, sample-image serving, and error paths all exercised from the UI
-route through the proxy).
+benchmark run (avg conf 0.708, ~0.56 s/image, 13/13 reliable), README benchmark table added,
+root `.env.example` support added, the **full frontend built and integrated** (see §10) with
+the Vite dev proxy verified end-to-end against the live backend (detect, history, reset,
+sample-image serving, and error paths all exercised from the UI route through the proxy),
+and **fresh dashboard screenshots** captured (see README: Detection view, crosswalk
+detection result, History view).
 
 ---
 
