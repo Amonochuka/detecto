@@ -7,15 +7,19 @@ class PersonDetector:
     def __init__(
         self,
         model_name="yolov8n.pt",
-        conf_threshold=0.5,
-        max_det=100,
-        min_size_ratio=0.02,
+        conf_threshold=0.25,
+        max_det=300,
+        min_size_ratio=0.005,
     ):
         from ultralytics import YOLO
         self.model = YOLO(model_name)
         self.conf_threshold = conf_threshold
         self.max_det = max_det
         self.min_size_ratio = min_size_ratio
+        
+        # Warm up the model to avoid slow first inference
+        dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+        self.model(dummy, conf=self.conf_threshold, iou=0.4, max_det=self.max_det, verbose=False)
     
     def detect(self, image_source):
         import cv2
@@ -32,7 +36,7 @@ class PersonDetector:
         h, w = img.shape[:2]
         min_box_size = max(h, w) * self.min_size_ratio
         
-        img = preprocess_pipeline(img, max_dim=1280, enhance=True, normalize=False)
+        img = preprocess_pipeline(img, max_dim=1280, enhance=False, normalize=False)
         
         start_time = time.time()
         
