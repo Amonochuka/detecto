@@ -24,9 +24,8 @@ Two parts:
 | `backend/` | FastAPI + Python | Accept an image, run the detection model, return boxes + confidences + an annotated image, and save history |
 | `frontend/` | React + Vite (JSX) | Dashboard with a "Detection" page (upload → see boxes) and a "History" page (table/graph of past detections) |
 
-> The backend is **fully implemented and tested**. The frontend is **also fully
-> implemented** — a React + Vite two-page dashboard (Detection + History), documented
-> file-by-file and function-by-function in §10.
+> The backend is **fully implemented and tested**. The frontend is currently **empty
+> scaffolding** (placeholder files only) — that is the big remaining piece of work.
 
 ---
 
@@ -71,19 +70,17 @@ detecto/
 │       ├── conftest.py          # fixtures + fake detector/storage
 │       ├── test_detect.py       # 6 tests for /api/detect
 │       └── test_history.py      # 5 tests for history/reset
-└── frontend/                    # React + Vite dashboard (see §10)
-    ├── index.html               # HTML entry point (mounts #root + main.jsx)
-    ├── package.json             # deps + scripts
-    ├── package-lock.json        # locked dependency tree
-    ├── vite.config.js           # React plugin + /api proxy → :8000
-    ├── public/samples/          # 13 demo images (used by the Detection page)
+└── frontend/                    # (scaffolding — not built yet)
+    ├── index.html
+    ├── package.json
+    ├── public/samples/          # put 10+ demo images here (required by spec)
     └── src/
-        ├── main.jsx             # React entry: createRoot + render(<App/>)
-        ├── App.jsx              # Router: navbar + Routes (/, /history)
-        ├── styles.css           # all CSS (tokens, layout, components)
+        ├── App.jsx              # returns null (placeholder)
+        ├── main.jsx             # returns null (placeholder)
+        ├── styles.css           # empty
         └── pages/
-            ├── Detection.jsx    # page: upload / sample picker / results
-            └── History.jsx      # page: table, filters, clear
+            ├── Detection.jsx    # returns null (placeholder)
+            └── History.jsx      # returns null (placeholder)
 ```
 
 ---
@@ -527,16 +524,6 @@ f4dfad1 refactor: lazy-load ML dependencies for fast imports
 
 Each commit is one logical task, so history is easy to read and easy to revert.
 
-The frontend work (§10) was committed the same way — one logical task per commit
-(these four live on the local `main` only; they have not been pushed):
-
-```
-0cb431c feat(frontend): scaffold Vite + React app with routing and base styles
-8ffb587 feat(frontend): add Detection page with upload, samples, and results
-13f78b2 feat(frontend): add History page with filters, table, and reset
-0071565 docs: update README for completed stack
-```
-
 ---
 
 ## 8. Concepts worth remembering
@@ -566,10 +553,11 @@ The frontend work (§10) was committed the same way — one logical task per com
    can be finalised (ground truth is a human job by design).
 2. **Optional crowd-count fix** — implement `max_det` + size filter (§5.8) to reduce the
    under-counts in dense crowds without failing the ≥ 0.7 confidence target.
-3. **Fresh UI screenshots** — the README screenshots in `docs/screenshots/` predate the
-   dashboard; re-capture them from the running app (§10) to show the real Detection and
-   History pages.
-4. **Push** — the four frontend commits (see §7) are local on `main`; push when ready.
+3. **Frontend** — build the React/Vite dashboard (Detection + History pages). The two pages
+   are still scaffolding (`null`). This is the big remaining piece.
+4. **Screenshots / demo** — capture annotated results in the UI once the frontend exists
+   (a placeholder README uses `backend/samples/annotated/` outputs now).
+5. Validate error paths end-to-end (text file upload, huge file, etc.) from the UI.
 
 Already done since this doc was first written: full deps installed (torch/opencv/ultralytics),
 13 real sample images fetched (crowds, crosswalks, night market, snow) into
