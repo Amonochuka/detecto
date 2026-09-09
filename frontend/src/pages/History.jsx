@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { fetchHistory, resetHistory } from "../utils/api";
 
 export default function History() {
   const [records, setRecords] = useState([]);
@@ -7,38 +8,34 @@ export default function History() {
   const [dateFilter, setDateFilter] = useState("");
   const [limit, setLimit] = useState(50);
 
-  const fetchHistory = useCallback(async () => {
+  const loadHistory = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (dateFilter) params.set("date", dateFilter);
-      params.set("limit", limit);
-      const res = await fetch(`/api/history?${params}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Failed to fetch history.");
-        return;
-      }
+      const data = await fetchHistory({
+        date: dateFilter || undefined,
+        limit,
+      });
       setRecords(data.detections || []);
-    } catch {
-      setError("Could not connect to the backend. Make sure the server is running on port 8000.");
+    } catch (err) {
+      setError(err.message || "Failed to fetch history.");
     } finally {
       setLoading(false);
     }
   }, [dateFilter, limit]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+    loadHistory();
+  }, [loadHistory]);
 
   async function handleReset() {
     if (!window.confirm("Clear all detection history? This cannot be undone.")) return;
+    setError(null);
     try {
-      await fetch("/api/reset", { method: "POST" });
+      await resetHistory();
       setRecords([]);
-    } catch {
-      setError("Failed to clear history.");
+    } catch (err) {
+      setError(err.message || "Failed to clear history.");
     }
   }
 
@@ -47,18 +44,13 @@ export default function History() {
     let cls = "conf-low";
     if (conf >= 0.7) cls = "conf-high";
     else if (conf >= 0.4) cls = "conf-medium";
-    return (
-      <span className={`conf-badge ${cls}`}>{pct}%</span>
-    );
+    return <span className={`conf-badge ${cls}`}>{pct}%</span>;
   }
 
-  function formatTime(iso) {
-    try {
-      const d = new Date(iso);
-      return d.toLocaleString();
-    } catch {
-      return iso;
-    }
+  function formatTime(seconds) {
+    return seconds < 1
+      ? `${(seconds * 1000).toFixed(0)} ms`
+      : `${seconds.toFixed(2)} s`;
   }
 
   return (
@@ -71,7 +63,7 @@ export default function History() {
       {error && <div className="error-banner">{error}</div>}
 
       <div className="filters-bar">
-        <label style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+        <label style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
           Date:
           <input
             type="date"
@@ -80,7 +72,7 @@ export default function History() {
             style={{ marginLeft: "0.5rem" }}
           />
         </label>
-        <label style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+        <label style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
           Limit:
           <input
             type="number"
@@ -91,7 +83,7 @@ export default function History() {
             style={{ marginLeft: "0.5rem", width: "80px" }}
           />
         </label>
-        <button className="btn btn-outline" onClick={fetchHistory}>
+        <button className="btn btn-outline" onClick={loadHistory}>
           Refresh
         </button>
         <button className="btn btn-danger" onClick={handleReset}>
@@ -109,7 +101,7 @@ export default function History() {
           <div className="icon">📭</div>
           <p>No detections recorded yet.</p>
           <p style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
-            Run a detection from the <a href="/" style={{ color: "var(--primary)" }}>Detection</a> page to see results here.
+            Run a detection from the <a href="/">Detection</a> page to see results here.
           </p>
         </div>
       ) : (
@@ -127,24 +119,30 @@ export default function History() {
             <tbody>
               {records.map((rec, i) => (
                 <tr key={i}>
-                  <td style={{ color: "var(--text-muted)" }}>{i + 1}</td>
-                  <td>{formatTime(rec.timestamp)}</td>
+                  <td style={{ color: "var(--color-text-muted)" }}>{i + 1}</td>
+                  <td>{formatDateTime(rec.timestamp)}</td>
                   <td style={{ fontWeight: 600 }}>{rec.count}</td>
                   <td>{confBadge(rec.average_confidence)}</td>
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {rec.inference_time < 1
-                      ? `${(rec.inference_time * 1000).toFixed(0)} ms`
-                      : `${rec.inference_time.toFixed(2)} s`}
+                    {formatTime(rec.inference_time)}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+          <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
             Showing {records.length} record{records.length !== 1 && "s"}
           </div>
         </div>
       )}
     </div>
   );
+}
+
+function formatDateTime(iso) {
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
 }
