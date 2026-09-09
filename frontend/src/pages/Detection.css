@@ -40,9 +40,20 @@
   color: var(--color-text);
 }
 
+.dropzone-text .browse {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .dropzone-hint {
   font-size: 0.85rem;
   color: var(--color-text-muted);
+}
+
+.dropzone input[type="file"] {
+  display: none;
 }
 
 .alert {
@@ -79,6 +90,24 @@
   gap: 0.25rem;
 }
 
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value.success { color: var(--color-success); }
+.stat-value.primary { color: var(--color-primary); }
+.stat-value.warning { color: var(--color-warning); }
+
 .image-result {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -92,4 +121,88 @@
   width: 100%;
   height: auto;
   border-radius: var(--radius);
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 800px) {
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detection-list {
+  max-height: 400px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detection-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+}
+
+.detection-item .det-index {
+  color: var(--color-primary);
+  font-weight: 700;
+  margin-right: 0.75rem;
+  min-width: 1.5rem;
+}
+
+.detection-item .det-conf {
+  color: var(--color-success);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.sample-card {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.sample-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.sample-card.selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.sample-card img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  display: block;
+}
+
+.sample-card .sample-name {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

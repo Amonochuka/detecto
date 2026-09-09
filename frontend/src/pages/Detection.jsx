@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { detectImage } from "../utils/api";
+import "./Detection.css";
 
 const SAMPLES = [
   "busy-street-scene-in-yabelo-ethiopia-2011-jpg.jpg",
@@ -21,6 +23,12 @@ function displayName(filename) {
     .replace(/-jpg$/i, "")
     .replace(/-/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatTime(seconds) {
+  return seconds < 1
+    ? `${(seconds * 1000).toFixed(0)} ms`
+    : `${seconds.toFixed(2)} s`;
 }
 
 export default function Detection() {
@@ -46,8 +54,7 @@ export default function Detection() {
   function handleDrop(e) {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    handleFileSelect(file);
+    handleFileSelect(e.dataTransfer.files[0]);
   }
 
   function handleDragOver(e) {
@@ -73,19 +80,11 @@ export default function Detection() {
     setError(null);
     setResult(null);
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await fetch("/api/detect", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Detection failed.");
-        return;
-      }
+      const data = await detectImage(file);
       setResult(data);
-    } catch {
-      setError("Could not connect to the backend. Make sure the server is running on port 8000.");
+    } catch (err) {
+      setError(err.message || "Detection failed.");
     } finally {
       setLoading(false);
     }
@@ -101,55 +100,50 @@ export default function Detection() {
       const res = await fetch(`/samples/${filename}`);
       if (!res.ok) throw new Error("Failed to fetch sample");
       const blob = await res.blob();
-      const file = new File([blob], filename, { type: "image/jpeg" });
-      await uploadFile(file);
-    } catch {
-      setError("Failed to load sample image.");
+      await uploadFile(new File([blob], filename, { type: "image/jpeg" }));
+    } catch (err) {
+      setError(err.message || "Failed to load sample image.");
       setLoading(false);
     }
   }
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Detection View</h1>
-        <p>Upload an image or select a sample to detect people.</p>
-      </div>
+      <h1 className="page-title">Detection View</h1>
+      <p className="page-subtitle">
+        Upload an image or select a sample to detect people.
+      </p>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && <div className="alert alert-error">{error}</div>}
 
       {result && (
-        <>
-          <div className="stats-row">
-            <div className="card">
+        <div className="results">
+          <div className="stats">
+            <div className="stat">
               <div className="stat-value success">{result.count}</div>
               <div className="stat-label">People Detected</div>
             </div>
-            <div className="card">
+            <div className="stat">
               <div className="stat-value primary">
                 {(result.average_confidence * 100).toFixed(1)}%
               </div>
               <div className="stat-label">Avg Confidence</div>
             </div>
-            <div className="card">
+            <div className="stat">
               <div className="stat-value warning">
-                {result.inference_time < 1
-                  ? `${(result.inference_time * 1000).toFixed(0)} ms`
-                  : `${result.inference_time.toFixed(2)} s`}
+                {formatTime(result.inference_time)}
               </div>
               <div className="stat-label">Processing Time</div>
             </div>
           </div>
 
           <div className="results-grid">
-            <div className="card">
-              <div className="card-title">Annotated Image</div>
-              <div className="annotated-image-wrapper">
-                <img
-                  src={`data:image/jpeg;base64,${result.annotated_image}`}
-                  alt="Detection result"
-                />
-              </div>
+            <div className="image-result">
+              <img
+                className="annotated-img"
+                src={`data:image/jpeg;base64,${result.annotated_image}`}
+                alt="Detection result"
+              />
             </div>
             <div className="card">
               <div className="card-title">
@@ -165,7 +159,7 @@ export default function Detection() {
                   result.detections.map((det, i) => (
                     <div className="detection-item" key={i}>
                       <span className="det-index">#{i + 1}</span>
-                      <span style={{ flex: 1, color: "var(--text-muted)" }}>
+                      <span style={{ flex: 1, color: "var(--color-text-muted)" }}>
                         ({Math.round(det.x1)}, {Math.round(det.y1)}) &rarr; (
                         {Math.round(det.x2)}, {Math.round(det.y2)})
                       </span>
@@ -178,31 +172,32 @@ export default function Detection() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       <div className="card" style={{ marginTop: "1.5rem" }}>
         <div className="card-title">Upload Image</div>
         <div
-          className={`upload-zone ${dragOver ? "dragover" : ""}`}
+          className={`dropzone ${dragOver ? "dragging" : ""}`}
           onClick={() => fileInputRef.current?.click()}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
         >
-          <div className="icon">📷</div>
+          <div className="dropzone-icon">📷</div>
           {loading ? (
-            <p>
-              <span className="spinner" /> Detecting...
-            </p>
+            <div className="dropzone-text">
+              <span className="spinner" /> Detecting…
+            </div>
           ) : (
-            <p>
-              Drag & drop an image here or <span className="browse">browse</span>
-            </p>
+            <>
+              <div className="dropzone-text">
+                Drag &amp; drop an image here or{" "}
+                <span className="browse">browse</span>
+              </div>
+              <div className="dropzone-hint">Supports JPEG, PNG (max 15 MB)</div>
+            </>
           )}
-          <p style={{ marginTop: "0.5rem", fontSize: "0.75rem" }}>
-            Supports JPEG, PNG (max 15 MB)
-          </p>
           <input
             ref={fileInputRef}
             type="file"
