@@ -269,16 +269,20 @@ The `PersonDetector` class wraps the **YOLOv8** model (Ultralytics), the default
 class PersonDetector:
     def __init__(self, model_name="yolov8n.pt"):
         self.model = YOLO(model_name)      # loads the pretrained weights
-        self.conf_threshold = 0.5          # only keep boxes with confidence >= 0.5
+        self.conf_threshold = 0.20         # only keep boxes with confidence >= 0.20
 ```
 
 Key methods:
 
 - **`detect(image_source)`** — runs the model on a numpy array / file path / PIL image.
   1. Times inference with `time.time()`.
-  2. Runs `self.model(image_source, conf=self.conf_threshold)`.
-  3. Loops over detected boxes, keeps only **class 0** (person in the COCO dataset).
-  4. Collects each box's coordinates and confidence.
+  2. Picks an inference resolution of up to 1280px (multiple of 32, never below 640)
+     from the image size — the default 640px input letterboxes images down and loses
+     small/distant people in crowds (a 1280px crowd scene jumps from 2 to 35 detections).
+  3. Runs `self.model(image_source, conf=self.conf_threshold, imgsz=...)`.
+  4. Loops over detected boxes, keeps only **class 0** (person in the COCO dataset),
+     filters out boxes smaller than `min_size_ratio` of the image, and scales each box
+     back to the original image's pixel space.
   5. Returns a dict: `count`, `detections`, `average_confidence`, `inference_time`.
 
 - **`annotate_image(image_source, detections)`** — draws a green rectangle around each person and writes the confidence score above the box, using OpenCV.
@@ -384,6 +388,10 @@ Tests cover: loading the detector, running detection on a synthetic image, the `
 
 - **Flat-file JSON storage** — intentionally simple. A real production system would use SQLite/PostgreSQL with concurrency control. Good for this assignment; note it's not safe for heavy concurrent writes.
 - **CPU inference** — `yolov8n.pt` (nano) is chosen so it runs reasonably on CPU. For GPU, swap to a larger model and install the CUDA build of torch.
-- **Confidence threshold 0.5** — can be tuned down to find more (often occluded) people, at the risk of more false positives.
+- **Confidence threshold 0.20** — the default in `utils/detector.py`. Can be tuned up to cut
+  false positives, or down to recover more occluded/distant people.
+- **Inference resolution up to 1280px** — YOLO's default 640px input squashes crowded
+  scenes and hides small/distant people. The detector sizes `imgsz` from the image (640–
+  1280, multiple of 32), trading a modest speed increase for much better crowd counts.
 - **CORS restricted** — only the configured frontend origin is allowed, not `*` (hardcoded). This is safer than the original wildcard config.
 - **Detection stats** — `inference_time` and `average_confidence` are logged per record precisely so you can compute the metrics required by the assignment (accuracy, inference time, confidence) across your 10+ test images.

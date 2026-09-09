@@ -163,14 +163,18 @@ mean inference **0.56 s** (≤ 1.5 s ✅; ~0.38 s excluding the first-call warm-
 **13/13 images processed without errors (100 % ✅)**.
 
 > The table above was measured at conf ≥ 0.5. The current default in
-> `utils/detector.py` is **0.25** (with `max_det=300`, `min_size_ratio=0.005`), which
+> `utils/detector.py` is **0.20** (with `max_det=300`, `min_size_ratio=0.005`), which
 > raises the same run from 74 to 97 detected persons by recovering distant/occluded
 > people the 0.5 cut missed — at some cost to average confidence.
 
 **Known limitation (logged failure):** the London Stadium crowd detected **0** persons
-at conf ≥ 0.5 — a distant, heavily occluded crowd. This is the classic
-"occlusion/partial visibility" failure the project asks to document; single, clear
-subjects (image 10) score perfectly (1/1).
+at conf ≥ 0.5 with the default 640px inference resolution — a distant, heavily occluded
+crowd. Testing showed the real culprit was the input resolution: at `imgsz=1280` the same
+scene yields **35** people at the 0.20 default. The `PersonDetector` now picks an
+inference resolution of up to 1280px from the image size, which is what recovered the
+crowd (this under-counting is the classic "occlusion/partial visibility" failure the
+project asks to document — some truly distant/tiny people remain below the confidence
+floor even at full resolution). Single, clear subjects (image 10) still score 1/1.
 
 **Manual step:** Detection Accuracy and False-Positive % are computed against your own
 manual count of visible persons per image — open any `backend/samples/annotated/*.jpg`,

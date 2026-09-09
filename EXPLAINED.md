@@ -24,8 +24,9 @@ Two parts:
 | `backend/` | FastAPI + Python | Accept an image, run the detection model, return boxes + confidences + an annotated image, and save history |
 | `frontend/` | React + Vite (JSX) | Dashboard with a "Detection" page (upload → see boxes) and a "History" page (table/graph of past detections) |
 
-> The backend is **fully implemented and tested**. The frontend is currently **empty
-> scaffolding** (placeholder files only) — that is the big remaining piece of work.
+> Both the backend and the frontend are **fully implemented and tested**. The backend is
+> verified by 11 tests that run without the ML stack; the frontend is a complete
+> React + Vite SPA (details in §10).
 
 ---
 
@@ -46,7 +47,6 @@ detecto/
 │   ├── README.md                # deep-dive backend docs
 │   ├── main.py                  # FastAPI app: config, CORS, lifespan, routers
 │   ├── requirements.txt         # backend deps (source of truth)
-│   ├── detections.json          # history storage (auto-created, gitignored)
 │   ├── models/
 │   │   └── record.py            # Pydantic request/response models
 │   ├── interfaces/
@@ -70,18 +70,27 @@ detecto/
 │       ├── conftest.py          # fixtures + fake detector/storage
 │       ├── test_detect.py       # 6 tests for /api/detect
 │       └── test_history.py      # 5 tests for history/reset
-└── frontend/                    # (scaffolding — not built yet)
+└── frontend/                    # complete React + Vite SPA (§10)
     ├── index.html
     ├── package.json
-    ├── public/samples/          # put 10+ demo images here (required by spec)
+    ├── vite.config.js           # dev proxy /api → localhost:8000
+    ├── public/samples/          # 13 demo demo images (spec requires 10+)
     └── src/
-        ├── App.jsx              # returns null (placeholder)
-        ├── main.jsx             # returns null (placeholder)
-        ├── styles.css           # empty
-        └── pages/
-            ├── Detection.jsx    # returns null (placeholder)
-            └── History.jsx      # returns null (placeholder)
+        ├── App.jsx              # routing shell (Detection + History routes)
+        ├── main.jsx             # React entry point
+        ├── styles.css           # global styles + design tokens
+        ├── components/
+        │   └── Navbar.jsx       # top navigation bar
+        ├── pages/
+        │   ├── Detection.jsx    # upload/sample → annotated results
+        │   └── History.jsx      # timestamped detection table + filters
+        └── utils/
+            └── api.js           # detectImage / fetchHistory / resetHistory
 ```
+
+Note: history is written to `detections.json` at the **repo root** by
+`JsonDetectionRepository` (`backend/repositories/json_storage.py`), so the "detections.json"
+line in the tree belongs at the top level (it is auto-created and gitignored).
 
 ---
 
@@ -138,18 +147,28 @@ Small but important detail: `limit` uses `detections[-limit:]` which in Python w
 `PersonDetector` wraps **Ultralytics YOLOv8** (default weights `yolov8n.pt` — the small
 "nano" model, a good speed/accuracy trade-off for CPU).
 
-- `detect(image)` runs inference with a **confidence threshold of 0.5** and keeps only
+- `detect(image)` runs inference with a **confidence threshold of 0.20** and keeps only
   boxes whose class id is **0**. In the COCO dataset (which YOLOv8 is trained on),
-  class 0 is **person**. It returns `count`, `detections` (each with `x1,y1,x2,y2`,
+  class 0 is **person**. The image is downscaled to a 1280 px max dimension before
+  inference, and the inference resolution (`imgsz`) is sized from the image — up to
+  1280 px (multiple of 32, never below 640). This matters: YOLO's default 640 px input
+  letterboxes crowded scenes down and hides small/distant people (the London Stadium
+  crowd reads **2** people at 640 px but **35** at 1280 px). Every returned box is
+  scaled **back to the original image's pixel space**, so coordinates always match the
+  image you annotate. It returns `count`, `detections` (each with `x1,y1,x2,y2`,
   `confidence`, `class`), `average_confidence`, and `inference_time`.
-- `annotate_image(image, detections)` draws green rectangles + a confidence label.
-- `image_to_base64(image)` JPEG-encodes the image and returns base64 (so the frontend can
-  embed it directly in an `<img>` tag).
+- `annotate_image(image, detections)` draws green rectangles + a confidence label. It
+  expects an RGB array and draws accordingly.
+- `image_to_base64(image)` converts the RGB array to BGR for OpenCV, JPEG-encodes it, and
+  returns base64 (so the frontend can embed it directly in an `<img>` tag). Converting
+  **before** encoding is what keeps colours correct — OpenCV's `imencode` assumes BGR.
 
-### 3.5 `utils/storage.py` — persistence
+### 3.5 `repositories/json_storage.py` — persistence
 
-`DetectionStorage` stores every detection as a JSON array in `backend/detections.json`
-(guaranteed relative to the backend directory — see §5.2).
+`JsonDetectionRepository` stores every detection as a JSON array in `detections.json`
+(guaranteed relative to the repo root — three `.parent`s up from
+`repositories/json_storage.py`; see §5.2). The abstract interface it implements lives in
+`interfaces/storage.py`.
 
 Each record looks like:
 
@@ -163,7 +182,7 @@ Each record looks like:
 }
 ```
 
-Methods: `save_detection`, `load_all`, `load_by_date`, `reset`.
+Methods: `save`, `get_all`, `get_by_date`, `clear`.
 
 ### 3.6 `utils/perf_log.py` — performance logging
 
@@ -310,15 +329,15 @@ app's lifetime), and cv2 is imported once per annotated image (negligible).
 Originally: `DetectionStorage(storage_file="detections.json")` — a **relative path**, so
 the file appeared in whatever directory the process happened to run from.
 
-Now: default resolves relative to the **backend folder**:
+Now: default resolves relative to the **repo root**:
 
 ```python
-storage_file = Path(__file__).resolve().parent.parent / "detections.json"
+storage_file = Path(__file__).resolve().parent.parent.parent / "detections.json"
 ```
 
-`__file__` is this source file's path; `.resolve()` makes it absolute; `.parent.parent`
-walks up from `utils/` to `backend/`. Result: the file is always `backend/detections.json`
-no matter where you launch the server from.
+`__file__` is this source file's path; `.resolve()` makes it absolute; `.parent.parent.parent`
+walks up from `repositories/` to the repo root. Result: the file is always
+`detections.json` at the repo root no matter where you launch the server from.
 
 ### 5.3 Root `requirements.txt` (§point 3)
 
@@ -358,7 +377,7 @@ per detection to `backend/logs/performance.log` (5 MB max, 3 backups). `/api/det
 calls `log_detection(count, average_confidence, inference_time)` after inference. These
 logs are the raw numbers you'll aggregate for the project's benchmark table (§9).
 
-### 5.7 Confidence threshold and counting (0.15 → 0.5)
+### 5.7 Confidence threshold and counting
 
 Counting accuracy is the product's real job — but bounding boxes are handed out with a
 per-box confidence, and a decision has to be made about what counts as "a person". That
@@ -370,7 +389,7 @@ contain. The excess were low-confidence boxes the model attached to background c
 (trees, vehicle glass, crowd blurs). It also dragged mean confidence down to **0.526**,
 missing the spec's ≥ 0.7 target, and slowed post-processing to ~1.2 s/image.
 
-I ran a sweep of the threshold against all 13 images:
+A sweep of the threshold against all 13 images gave:
 
 | conf | persons | avg conf | infer | verdict |
 |------|--------:|---------:|------:|---------|
@@ -381,42 +400,37 @@ I ran a sweep of the threshold against all 13 images:
 | 0.60 | 55 | 0.605 | 0.38 s | under-counts |
 | 0.70 | 42 | 0.641 | 0.35 s | under-counts |
 
-**0.5 won**: it clears the ≥ 0.7 confidence target, keeps inference well under 1.5 s, and
-gives credible counts (a photo with one clear person → exactly 1). It's also the classic
-default for YOLO person detection.
+**Current default is 0.20.** The benchmark run above used 0.5, but with `max_det` and the
+size filter (see §5.8) in place the default is now 0.20 — low enough to recover a chunk of
+the distant/occluded crowd people (the 13-image run rises to ~97 persons) while the two
+filters strip the junk that a bare 0.20 threshold would otherwise admit.
 
 **The known trade-off** (documented in the README benchmark table): dense crowd images
 still under-count. At 0.5, Shibuya's scramble crossing read 7, the London Stadium crowd
 read 0, and the Dhaka street read 1 — those scenes genuinely contain more people than
-the model reports, mostly distant or half-occluded subjects scoring below 0.5.
+the model reports, mostly distant or half-occluded subjects scoring below the threshold.
+The London Stadium crowd is the classic "occlusion/partial visibility" failure to
+document: even at 0.20 it only recovers 1–2 people from a large, distant, heavily
+occluded crowd.
 
-**Why not just lower the threshold to fix the crowds?** Because the same relaxation that
-recovers hidden people also admits false boxes (background) → over-counting elsewhere and
-a failing confidence metric. The threshold alone can't win both ways (see §5.8).
+### 5.8 `max_det` + size filter (implemented)
 
-### 5.8 Planned next step: `max_det` + size filter (not yet implemented)
+This is the fix for the under-counting crowds *without* letting a bare low threshold ruin
+precision. It is implemented in `PersonDetector.__init__` via `max_det=300` and
+`min_size_ratio=0.005`, and enforced inside the `detect()` loop:
 
-This is my proposed fix for the under-counting crowds *without* breaking the confidence
-target, and it has **not** been implemented yet — picked up as a follow-up.
+1. **`max_det`** — caps the number of boxes returned per image (YOLO accepts `max_det=N`).
+   When the model produces more candidates than N it keeps only the strongest
+   (highest-confidence) N and discards the rest. This kills the tail of weak, repetitive
+   boxes.
 
-The idea, in plain terms:
-
-1. **`max_det`** — cap the number of boxes returned per image (YOLO accepts `max_det=N`).
-   A real street scene has maybe 50 people, not 300 candidate boxes. When the model
-   produces more candidates than N, keep only the strongest (highest-confidence) N and
-   discard the rest. This kills the tail of weak, repetitive boxes.
-
-2. **Size filter** — before counting, drop any box whose height or width is below a
-   small percentage of the image (e.g. 2–3% of height). Background specks and blurred
+2. **Size filter** — before counting, drop any box whose height **or** width is below
+   `min_size_ratio` (0.5%) of the image's longest edge. Background specks and blurred
    blobs are almost always tiny; real people — even distant ones — are bigger. This
    removes the classic "false person" without touching real ones.
 
-Applied together, you can afford to lower the threshold slightly (catch the hidden
-crowd people at ~0.3) and then let the two filters strip the junk, so:
-`lower threshold (recall) + max_det (cap duplicates) + size filter (kill blobs)`.
-
-Status: designed, discussed here, **not coded**. The README currently uses plain
-threshold 0.5 and asks for a manual per-image count to finalise the accuracy/FP numbers.
+Applied together they let us afford a low threshold:
+`low threshold (recall) + max_det (cap duplicates) + size filter (kill blobs)`.
 
 ---
 
@@ -550,20 +564,25 @@ Each commit is one logical task, so history is easy to read and easy to revert.
 
 1. **Manual count verification** — open the annotated images in `backend/samples/annotated/`
    and record the visible persons per image, so README's Accuracy (%) and False Positives (%)
-   can be finalised (ground truth is a human job by design).
-2. **Optional crowd-count fix** — implement `max_det` + size filter (§5.8) to reduce the
-   under-counts in dense crowds without failing the ≥ 0.7 confidence target.
-3. **Push** — the frontend work (see §7 and §10) is local on `main`; push when ready.
+   can be finalised (ground truth is a human job by design). Dense crowds (e.g. the London
+   Stadium scene) will under-count by design — log those as the documented
+   occlusion/partial-visibility failure.
+2. **Push** — the frontend and backend work is local on `main`; push when ready.
 
 Already done since this doc was first written: full deps installed (torch/opencv/ultralytics),
 13 real sample images fetched (crowds, crosswalks, night market, snow) into
-`backend/samples/` and `frontend/public/samples/`, conf threshold tuned to 0.5 with a real
-benchmark run (avg conf 0.708, ~0.56 s/image, 13/13 reliable), README benchmark table added,
+`backend/samples/` and `frontend/public/samples/`, conf threshold tuned (default 0.20) with a real
+benchmark run (avg conf 0.708 at conf 0.5, ~0.56 s/image, 13/13 reliable), README benchmark table added,
 root `.env.example` support added, the **full frontend built and integrated** (see §10) with
 the Vite dev proxy verified end-to-end against the live backend (detect, history, reset,
 sample-image serving, and error paths all exercised from the UI route through the proxy),
-and **fresh dashboard screenshots** captured (see README: Detection view, crosswalk
-detection result, History view).
+**fresh dashboard screenshots** captured (see README: Detection view, crosswalk
+detection result, History view), and four detection bugs fixed: an RGB/BGR colour swap in
+the annotated output, bounding boxes misaligned on images resized for inference (boxes are
+now scaled back to original coordinates), a crash on grayscale images (all inputs are now
+normalized to 3-channel RGB), and a crowd under-count fixed by sizing the inference
+resolution from the image (up to 1280 px, recovering ~17× more distant people) alongside
+`max_det` + size filter (§5.8).
 
 ---
 

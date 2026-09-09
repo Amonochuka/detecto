@@ -59,6 +59,23 @@ def pil_to_numpy(image: Image.Image) -> np.ndarray:
     return np.array(image.convert("RGB"))
 
 
+def to_rgb_channels(image: np.ndarray) -> np.ndarray:
+    """Normalize a numpy image to 3-channel RGB.
+
+    Handles grayscale (H x W) and Alpha (H x W x 4) arrays that YOLO cannot
+    process, returning an H x W x 3 array.
+    """
+    if image.ndim == 2:
+        return np.stack([image] * 3, axis=-1)
+    if image.ndim == 3:
+        if image.shape[2] == 4:
+            return image[..., :3]
+        if image.shape[2] == 1:
+            return np.concatenate([image] * 3, axis=-1)
+        return image
+    return image
+
+
 def numpy_to_pil(image: np.ndarray) -> Image.Image:
     """Convert RGB numpy array to PIL Image."""
     if image.dtype == np.float32:
