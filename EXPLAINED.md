@@ -24,8 +24,9 @@ Two parts:
 | `backend/` | FastAPI + Python | Accept an image, run the detection model, return boxes + confidences + an annotated image, and save history |
 | `frontend/` | React + Vite (JSX) | Dashboard with a "Detection" page (upload → see boxes) and a "History" page (table/graph of past detections) |
 
-> The backend is **fully implemented and tested**. The frontend is currently **empty
-> scaffolding** (placeholder files only) — that is the big remaining piece of work.
+> The backend is **fully implemented and tested**. The frontend is **also fully
+> implemented** — a React + Vite two-page dashboard (Detection + History), documented
+> file-by-file and function-by-function in §10.
 
 ---
 
@@ -38,6 +39,8 @@ detecto/
 ├── README.md                    # project README
 ├── EXPLAINED.md                 # this document
 ├── requirements.txt             # backend deps (root copy — see §5.3)
+├── test_crowd_count.py          # optional: run YOLO over every backend/samples image
+├── yolov8n.pt                   # YOLOv8-nano weights (gitignored)
 ├── backend/
 │   ├── .env                     # local config (BACKEND_HOST/PORT, FRONTEND_URL)
 │   ├── .env.example             # template for .env
@@ -45,8 +48,12 @@ detecto/
 │   ├── main.py                  # FastAPI app: config, CORS, lifespan, routers
 │   ├── requirements.txt         # backend deps (source of truth)
 │   ├── detections.json          # history storage (auto-created, gitignored)
-│   ├── logs/
-│   │   └── performance.log      # perf logging (auto-created, gitignored)
+│   ├── models/
+│   │   └── record.py            # Pydantic request/response models
+│   ├── interfaces/
+│   │   └── storage.py           # DetectionRepository abstract base class
+│   ├── repositories/
+│   │   └── json_storage.py      # JsonDetectionRepository (JSON file storage)
 │   ├── routes/
 │   │   ├── __init__.py
 │   │   ├── detect.py            # POST /api/detect
@@ -54,24 +61,29 @@ detecto/
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── detector.py          # PersonDetector (YOLOv8 wrapper)
-│   │   ├── storage.py           # DetectionStorage (JSON file)
+│   │   ├── preprocessing.py     # resize / normalize / contrast / letterbox
 │   │   └── perf_log.py          # rotating perf logger
+│   ├── logs/
+│   │   └── performance.log      # perf logging (auto-created, gitignored)
+│   ├── samples/                 # 13 original images + annotated/ outputs
 │   └── tests/
 │       ├── __init__.py
 │       ├── conftest.py          # fixtures + fake detector/storage
 │       ├── test_detect.py       # 6 tests for /api/detect
 │       └── test_history.py      # 5 tests for history/reset
-└── frontend/                    # (scaffolding — not built yet)
-    ├── index.html
-    ├── package.json
-    ├── public/samples/          # put 10+ demo images here (required by spec)
+└── frontend/                    # React + Vite dashboard (see §10)
+    ├── index.html               # HTML entry point (mounts #root + main.jsx)
+    ├── package.json             # deps + scripts
+    ├── package-lock.json        # locked dependency tree
+    ├── vite.config.js           # React plugin + /api proxy → :8000
+    ├── public/samples/          # 13 demo images (used by the Detection page)
     └── src/
-        ├── App.jsx              # returns null (placeholder)
-        ├── main.jsx             # returns null (placeholder)
-        ├── styles.css           # empty
+        ├── main.jsx             # React entry: createRoot + render(<App/>)
+        ├── App.jsx              # Router: navbar + Routes (/, /history)
+        ├── styles.css           # all CSS (tokens, layout, components)
         └── pages/
-            ├── Detection.jsx    # returns null (placeholder)
-            └── History.jsx      # returns null (placeholder)
+            ├── Detection.jsx    # page: upload / sample picker / results
+            └── History.jsx      # page: table, filters, clear
 ```
 
 ---
@@ -515,6 +527,16 @@ f4dfad1 refactor: lazy-load ML dependencies for fast imports
 
 Each commit is one logical task, so history is easy to read and easy to revert.
 
+The frontend work (§10) was committed the same way — one logical task per commit
+(these four live on the local `main` only; they have not been pushed):
+
+```
+0cb431c feat(frontend): scaffold Vite + React app with routing and base styles
+8ffb587 feat(frontend): add Detection page with upload, samples, and results
+13f78b2 feat(frontend): add History page with filters, table, and reset
+0071565 docs: update README for completed stack
+```
+
 ---
 
 ## 8. Concepts worth remembering
@@ -544,14 +566,299 @@ Each commit is one logical task, so history is easy to read and easy to revert.
    can be finalised (ground truth is a human job by design).
 2. **Optional crowd-count fix** — implement `max_det` + size filter (§5.8) to reduce the
    under-counts in dense crowds without failing the ≥ 0.7 confidence target.
-3. **Frontend** — build the React/Vite dashboard (Detection + History pages). The two pages
-   are still scaffolding (`null`). This is the big remaining piece.
-4. **Screenshots / demo** — capture annotated results in the UI once the frontend exists
-   (a placeholder README uses `backend/samples/annotated/` outputs now).
-5. Validate error paths end-to-end (text file upload, huge file, etc.) from the UI.
+3. **Fresh UI screenshots** — the README screenshots in `docs/screenshots/` predate the
+   dashboard; re-capture them from the running app (§10) to show the real Detection and
+   History pages.
+4. **Push** — the four frontend commits (see §7) are local on `main`; push when ready.
 
 Already done since this doc was first written: full deps installed (torch/opencv/ultralytics),
 13 real sample images fetched (crowds, crosswalks, night market, snow) into
 `backend/samples/` and `frontend/public/samples/`, conf threshold tuned to 0.5 with a real
 benchmark run (avg conf 0.708, ~0.56 s/image, 13/13 reliable), README benchmark table +
-screenshots added, and root `.env.example` support added.
+screenshots added, root `.env.example` support added, and the **full frontend built and
+integrated** (see §10) with the Vite dev proxy verified end-to-end against the live backend
+(detect, history, reset, sample-image serving, and error paths all exercised from the UI
+route through the proxy).
+
+---
+
+## 10. The frontend — every file, every function
+
+The frontend is a **React 18 + Vite 5** single-page application. It has exactly one page
+shell (`App.jsx`) with two routes, and every network call goes through the **Vite dev
+proxy** in `vite.config.js`, so the code uses *relative* URLs (`/api/detect`) and the
+browser never needs CORS in development.
+
+```
+Browser fetches http://localhost:5173
+   │
+   ├─ index.html ──<script type="module">──► main.jsx ──createRoot──► App.jsx
+   │                                                              (BrowserRouter)
+   │                                     ┌──────────────────────────────┴────────────────┐
+   │                        NavLink to "/"                                   NavLink to "/history"
+   │                                     │                                               │
+   │                               Detection view                                    History view
+   │                       POST /api/detect                                   GET /api/history
+   │                                     │                                               │
+   └─────────── Vite proxy ──/api/*─────► http://localhost:8000 (FastAPI)
+```
+
+Each file below gets its own sub-section; every function inside a file is explained
+separately after its name.
+
+### 10.1 `frontend/index.html`
+
+The **single HTML page** Vite serves in both dev and production. React never writes HTML
+directly — it renders into the empty `<div id="root">` inside this file.
+
+| Element | Purpose |
+|---------|---------|
+| `<meta charset="UTF-8">` | Correct Unicode rendering |
+| `<meta name="viewport" ...>` | Mobile-friendly scaling |
+| `<title>Detecto — Person Detection Dashboard</title>` | Browser tab title |
+| `<link rel="icon" ... data:image/svg+xml ...>` | Inline favicon (a 🎯 emoji) — no extra file to ship |
+| `<div id="root">` | The mount point React attaches to |
+| `<script type="module" src="/src/main.jsx">` | Loads the app; `type="module"` is required by Vite |
+
+There are no functions here — it is declarative markup only.
+
+### 10.2 `frontend/package.json`
+
+The npm manifest. The earlier version was a 4-line placeholder; this one is complete.
+
+| Field | Purpose |
+|-------|---------|
+| `"name": "detecto-frontend"` | Package name |
+| `"private": true` | Prevents accidental `npm publish` |
+| `"version": "1.0.0"` | Version |
+| `"type": "module"` | Treats `.js`/`.jsx` files as ES modules (modern `import` syntax) |
+| `"scripts": { "dev", "build", "preview" }` | The three commands: dev server, production build, preview the build |
+| `"dependencies": { react, react-dom, react-router-dom }` | Runtime libraries |
+| `"devDependencies": { vite, @vitejs/plugin-react }` | Build-time tools only |
+
+The dependency split matters: React and the router travel into the production bundle;
+Vite and its React plugin are only used while developing/building.
+
+- **`"dev": "vite"`** — starts the development server (port 5173, hot reload, proxy).
+- **`"build": "vite build"`** — bundles everything into `frontend/dist/` for deployment.
+- **`"preview": "vite preview"`** — serves the built `dist/` locally.
+
+### 10.3 `frontend/vite.config.js`
+
+Vite's configuration file — the only file with no React code.
+
+**`defineConfig({ ... })`** — returns the config object Vite uses at startup:
+
+| Setting | Purpose |
+|---------|---------|
+| `plugins: [react()]` | The `@vitejs/plugin-react` plugin adds JSX/ESM transform support |
+| `server.port: 5173` | Dev-server port (matches `FRONTEND_URL` in the backend `.env`) |
+| `server.proxy["/api"]` | Forwards every `/api/*` request to `http://localhost:8000` with `changeOrigin`. This is what lets the frontend call relative `/api/detect` and `/api/history` without CORS issues in development |
+
+### 10.4 `frontend/src/main.jsx`
+
+The **React entry point** — the smallest file, and the first one React runs.
+
+| Statement | Purpose |
+|-----------|---------|
+| `import React` / `import ReactDOM` | Brings in the React runtime and the DOM renderer |
+| `import App from "./App"` | The root component (see 10.5) |
+| `import "./styles.css"` | Pulls all global styles into the app |
+| `ReactDOM.createRoot(document.getElementById("root"))` | Attaches React to the `<div id="root">` from `index.html` |
+| `.render(<React.StrictMode><App /></React.StrictMode>)` | Renders the tree; `StrictMode` double-invokes render functions in dev to surface bugs |
+
+### 10.5 `frontend/src/App.jsx`
+
+The **page shell**. It owns the navbar and the routing table; the two pages are just
+lazy-rendered children.
+
+**`App()`** — the default-exported root component. It renders:
+
+| Piece | Purpose |
+|-------|---------|
+| `<BrowserRouter>` | Reads the URL and gives the router context to every route below it |
+| `<nav className="navbar">` | The fixed top bar |
+| `.nav-brand` | The "Detecto" wordmark |
+| `<NavLink to="/" end ...>` | The **Detection** tab. `end` means "only active on exactly `/`" |
+| `<NavLink to="/history" ...>` | The **History** tab |
+| `className={({ isActive }) => ...}` | React Router calls this per render — `isActive` toggles the `.active` highlight class for whichever tab matches the URL |
+| `<Routes>` / `<Route path="/" element={<Detection />} />` | When the URL is `/`, render the Detection page |
+| `<Route path="/history" element={<History />} />` | When the URL is `/history`, render the History page |
+
+### 10.6 `frontend/src/styles.css`
+
+All styling in one file, organised as a set of **design tokens** followed by component
+classes. No functions — plain CSS.
+
+**Design tokens (`:root`)** — CSS variables used everywhere else, so the whole theme is
+uniform and changeable in one place:
+
+| Variable | Value | Role |
+|----------|-------|------|
+| `--bg` | `#0f1117` | page background |
+| `--surface` | `#1a1d27` | card/navbar background |
+| `--surface-2` | `#242834` | nested panels, inputs, rows |
+| `--border` | `#2e3343` | hairline borders |
+| `--text` / `--text-muted` | `#e4e6ed` / `#8b8fa3` | primary / secondary text |
+| `--primary` / `--primary-hover` | `#3b82f6` / `#2563eb` | accents, active links, buttons |
+| `--success` / `--warning` / `--danger` | green / amber / red | semantic colours (counts, badges, errors) |
+| `--radius` / `--shadow` | `8px` / soft shadow | consistent rounding + elevation |
+
+**Component blocks** (each answers "what gets these styles"):
+
+| Selector(s) | Styles |
+|-------------|--------|
+| `*`, `*::before`, `*::after`, `html`, `body` | Box-model reset and base font/colour/line-height |
+| `.navbar`, `.nav-brand`, `.nav-links`, `.nav-link`, `.nav-link.active` | Sticky top bar, brand colour, tab hover/active states |
+| `.main-content` | Centres the page content (max-width 1200px) and lays out below the navbar |
+| `.page-header h1` / `.page-header p` | Page titles and subtitles |
+| `.card`, `.card-title` | The universal panel (surface bg, border, padding, title style) |
+| `.stats-row`, `.stat-value`, `.stat-label`, `.stat-value.success/.primary/.warning` | The three-metric summary row (count, confidence, time) |
+| `.upload-zone`, `.upload-zone.dragover`, `.icon`, `.browse`, `input[type="file"]` | Dashed drop target; highlight while dragging; hides the real file input on top of the clickable zone |
+| `.sample-grid`, `.sample-card`, `.sample-card.selected`, `.sample-name` | Responsive thumbnail gallery; selected-sample ring; truncated caption |
+| `.btn`, `.btn-primary`, `.btn-danger`, `.btn-outline`, `.btn:disabled` | Button base + the three variants + disabled state |
+| `.results-grid` (+ `@media (max-width: 800px)`) | Two-column image/list layout that collapses to one column on small screens |
+| `.annotated-image-wrapper img` | The result image fills its card without distortion |
+| `.detection-list`, `.detection-item`, `.det-index`, `.det-conf` | Scrollable per-person list; index number, coordinates, confidence |
+| `.filters-bar` + its inputs | The History toolbar (date picker, number input, buttons) |
+| `.history-table`, `th`, `td`, `tr:hover` | Full-width sortable-style table with hover rows |
+| `.conf-high` / `.conf-medium` / `.conf-low` | Confidence badge colours (≥0.7 / ≥0.4 / below) |
+| `.spinner`, `@keyframes spin`, `.loading-overlay` | Rotating loader used on both pages |
+| `.error-banner` | Red-tinted alert shown when a request fails |
+| `.empty-state`, `.icon` | Friendly "nothing here" panel |
+| `.section-title`, `::-webkit-scrollbar` | Small caps section labels; slim dark scrollbars |
+
+### 10.7 `frontend/src/pages/Detection.jsx` — per function
+
+This is the **main page** of the app. It ships a hard-coded list of the 13 sample images
+(in `public/samples/`), lets the user upload a photo instead, sends either one to the
+backend, and renders the annotated result.
+
+**`SAMPLES`** — a module-level array of the 13 sample filenames. It drives the gallery
+grid at the bottom of the page. Keeping it at module scope (outside the component) means
+it is created once, not on every render.
+
+**`displayName(filename)`** — a pure helper that turns a filename into a human caption:
+`"person-in-winter-clothing-in-quebec-city-jpg.jpg"` → `"Person In Winter Clothing In
+Quebec City"`. It does this by removing the `-jpg` suffix, replacing the remaining
+hyphens with spaces, and capitalising each word. Pure = same input always gives the same
+output, so it is safe to call from inside a render.
+
+**`Detection()`** — the default-exported page component. It holds the page's whole UI
+state:
+
+| State | What it tracks |
+|-------|----------------|
+| `selectedSample` | Which sample card (if any) is currently chosen — drives the ring highlight |
+| `dragOver` | Whether the pointer is over the drop zone (drives the `.dragover` highlight) |
+| `loading` | True while a detection request is in flight — shows the spinner text |
+| `error` | A user-facing error string, or `null` |
+| `result` | The last `/api/detect` response, or `null` |
+| `fileInputRef` | A `useRef` handle to the hidden `<input type="file">`, so the whole drop zone can trigger it with a click |
+
+It also registers one effect and six handlers, each described separately below.
+
+**`useEffect(() => { window.scrollTo(...) }, [result])`** — whenever a new `result`
+arrives (the dependency), smooth-scrolls the page to the top so the results panel is in
+view. It returns early if `result` is `null` (first mount).
+
+**`handleFileSelect(file)`** — the shared entry point for any chosen image. It ignores a
+falsy `file` (e.g. the user cancelled the picker), clears any old `error`, un-highlights
+the sample gallery (`setSelectedSample(null)`), then hands the file to `uploadFile`.
+
+**`handleDrop(e)`** — the drag-and-drop event handler. It calls `e.preventDefault()` (so
+the browser does not navigate to the file), clears the drag highlight, and pushes
+`e.dataTransfer.files[0]` — the first dropped file — into `handleFileSelect`.
+
+**`handleDragOver(e)`** — fires continuously while dragging over the zone. It calls
+`e.preventDefault()` (required to allow a drop) and sets `dragOver` true so the border
+lights up. The React `onDragOver` binding means no `e.stopPropagation()` is needed — the
+event is scoped to this element in JSX.
+
+**`handleDragLeave()`** — clears `dragOver` when the pointer leaves the zone, so the
+highlight does not stick.
+
+**`uploadFile(file)`** — the core async function. It:
+
+1. **Validates client-side first** (mirrors the backend): type must be `image/jpeg` or
+   `image/png`, else sets an error and returns; size must be ≤ 15 MB, else sets an error
+   and returns.
+2. Switches to the `loading` state and clears `error`/`result`.
+3. Builds a `FormData` with the file under the field name **`file`** — the exact name
+   `routes/detect.py` expects.
+4. `POST`s it to the **relative** URL `/api/detect` (the Vite proxy forwards it to
+   `:8000`).
+5. On an HTTP error status, surfaces the backend's `data.detail` message (e.g. "Uploaded
+   file is empty."); on a network failure (backend down), shows the "Could not connect…"
+   message.
+6. Stores the parsed JSON `result` — which the render turns into the stats row, annotated
+   image, and detection list. `finally` always clears `loading`.
+
+**`handleSampleClick(filename)`** — lets the user skip the file dialog and run a bundled
+sample instead. It highlights the card, enters `loading`, fetches the image bytes at
+`/samples/<filename>` (served statically by Vite from `public/`), wraps them in a `File`
+object named after the sample, and reuses `uploadFile`. If the fetch fails it shows
+"Failed to load sample image." and exits `loading`.
+
+**The render** is three stacked regions driven by the state above:
+
+1. `.page-header` + the `error` banner (drawn only when `error` is set).
+2. The **results block** (only when `result` exists): a `.stats-row` of three cards —
+   people count, average confidence (×100, one decimal, %), and processing time
+   (printed as ms when under 1 s, else seconds) — followed by a `.results-grid` with the
+   annotated image (drawn from `data:image/jpeg;base64,${result.annotated_image}`) and a
+   per-detection list showing `#i`, corner coordinates `(x1,y1) → (x2,y2)` rounded to
+   integers, and each box's confidence.
+3. The **upload card** (clickable/drop zone, hidden file input) and the **samples card**
+   (the `SAMPLES` grid, each tile clickable and highlighted when selected).
+
+### 10.8 `frontend/src/pages/History.jsx` — per function
+
+The second page: it reads past detections from the backend and shows them in a table,
+with a date filter, a row limit, a refresh button, and a guarded "clear" action.
+
+**`History()`** — the default-exported page component and its state:
+
+| State | What it tracks |
+|-------|----------------|
+| `records` | The array of detection records loaded from `/api/history` |
+| `loading` | True while a fetch is in flight |
+| `error` | A user-facing error string, or `null` |
+| `dateFilter` | The value of the `<input type="date">` box (`""` = no filter) |
+| `limit` | The row limit, defaults to `50` |
+
+Note the `useCallback`/`useEffect` pair: `fetchHistory` is recreated only when its two
+dependencies (`dateFilter`, `limit`) change, and the effect re-runs only when the function
+changes — so changing the date or limit automatically re-fetches, without resetting
+`records` on every keystroke elsewhere.
+
+**`fetchHistory()`** — the async loader (wrapped in `useCallback`). It builds a query
+string with `URLSearchParams`: adds `date=YYYY-MM-DD` only when the filter is non-empty,
+always adds `limit=N`, then `GET`s `/api/history` (again relative, via the proxy). On an
+HTTP error it shows the backend's `detail`; on success it stores the array (falling back
+to `[]`); a network failure produces the "Could not connect…" message. `finally` clears
+`loading`.
+
+**`useEffect(() => { fetchHistory(); }, [fetchHistory])`** — runs `fetchHistory`
+whenever the component mounts **or** when the filter/limit changed.
+
+**`handleReset()`** — the async "Clear History" action. First it pops a
+`window.confirm` dialog ("This cannot be undone.") and aborts if the user declines. If
+they accept it `POST`s `/api/reset` and optimistically empties the local `records`
+array, so the table clears instantly; a failed request instead sets a "Failed to clear
+history." error.
+
+**`confBadge(conf)`** — a pure render helper that turns a confidence number into a
+coloured pill: ≥ 0.7 → green `.conf-high`, ≥ 0.4 → amber `.conf-medium`, otherwise red
+`.conf-low`, with the percentage text (one decimal) inside.
+
+**`formatTime(iso)`** — a pure helper that parses the backend's ISO timestamp into a
+`Date` and formats it with `toLocaleString()` (your browser's date/time format). If the
+string cannot be parsed it returns it unchanged rather than throwing.
+
+**The render** is: header, error banner, then a `.filters-bar` (date input, number
+input clamped 1–500, Refresh button wired to `fetchHistory`, red Clear History button
+wired to `handleReset`), then one of three states — the loading spinner (`.loading-overlay`),
+the `.empty-state` (with a link back to `/`), or the `.history-table` listing each record
+with its index, formatted timestamp, people count, confidence badge, and inference time
+(ms or s). A footer line summarises how many records are shown.
