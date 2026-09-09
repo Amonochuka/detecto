@@ -3,7 +3,9 @@
 Real-time person detection and counting system. A FastAPI backend runs YOLOv8 person
 detection on uploaded images, returns bounding boxes with confidence scores plus an
 annotated image, and stores every detection with a timestamp for later analysis. A
-React + Vite frontend (see #4) provides the dashboard.
+React + Vite frontend provides a two-page dashboard: a **Detection view** to upload
+images or pick from 13 bundled samples and watch results render, and a **History view**
+to review past detections with date filters and one-click reset.
 
 ## Architecture
 
@@ -20,9 +22,18 @@ React + Vite frontend (see #4) provides the dashboard.
 ```
 
 - `backend/` — FastAPI app: `/api/detect`, `/api/history`, `/api/reset`; YOLOv8
-  (`utils/detector.py`), JSON-file history (`utils/storage.py`), perf logging
-  (`utils/perf_log.py`).
-- `frontend/` — React + Vite single-page app (Detection + History pages).
+  (`utils/detector.py`), JSON-file history (`repositories/json_storage.py` with the
+  repository pattern in `interfaces/storage.py`), perf logging (`utils/perf_log.py`).
+- `frontend/` — React + Vite SPA (`react-router-dom` for navigation:
+  `/` → Detection, `/history` → History). Dev server proxies `/api/*` to the backend
+  on port 8000, so no CORS fiddling is needed in development.
+  - Detection view: drag-and-drop or file-picker upload (JPEG/PNG, ≤ 15 MB), a grid
+    of sample images, and a live results panel with per-person boxes, bounding-box
+    coordinates, confidence scores, count, average confidence, and processing time
+    (auto-scaled ms/s).
+  - History view: table of timestamped detections (people count, avg confidence badge,
+    inference time), a date filter (YYYY-MM-DD), a result limit (default 50), refresh,
+    and a guarded Clear History button backed by `POST /api/reset`.
 
 See [EXPLAINED.md](EXPLAINED.md) for a full walkthrough of the code, the changes, why
 they were made, and an explanation of every test.
@@ -47,13 +58,36 @@ uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 Quick check: `curl http://localhost:8000/health` → `{"status":"healthy"}`.
 Interactive API docs: http://localhost:8000/docs.
 
-Frontend (dev):
+Frontend (dev, from a second terminal):
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev        # http://localhost:5173
 ```
+
+Open http://localhost:5173 — the Detection view loads immediately. Upload an image or
+click any sample card; results (annotated image, count, confidence, timing) appear in a
+stats row plus a side panel listing each detection. The History tab shows every saved
+detection recorded so far.
+
+Previews of the sample set:
+
+| Terse name | Sample image |
+|---|---|
+| Yabelo street | `busy-street-scene-in-yabelo-ethiopia-2011-jpg.jpg` |
+| Dhaka street | `busy-street-with-pedestrians-in-dhaka-bangladesh-jpg.jpg` |
+| Winchester market | `christmas-market-crowd-winchester-geograph-org-uk-42887.jpg` |
+| Brooklyn snow | `church-ave-people-walking-in-snow-chicken-restaurant-jan-2026-brooklyn-jpg.jpg` |
+| Kenting night market | `crowd-at-the-kenting-night-market-20100925-jpg.jpg` |
+| London stadium | `london-stadium-crowd-control-jpg.jpg` |
+| Crosswalk | `pedestrians-crossing-the-a-busy-street-jpg.jpg` |
+| High Line NYC | `people-walking-north-on-the-high-line-jpg.jpg` |
+| Dufferin Terrace | `people-walking-on-the-dufferin-terrace-in-winter-jpg.jpg` |
+| Quebec pedestrian | `person-in-winter-clothing-in-quebec-city-jpg.jpg` |
+| Mall queue | `queue-of-people-outside-a-mall-jpg.jpg` |
+| Shibuya crossing | `tokyo-shibuya-scramble-crossing-2018-10-09-jpg.jpg` |
+| Jerusalem walkers | `walking-jewish-people-jerusalem-jpg.jpg` |
 
 ## API endpoints
 
@@ -80,7 +114,7 @@ Backend tests run against fake detector/storage, so **no ML stack is required** 
 them (only fastapi, pillow, numpy, python-multipart, pytest, httpx).
 
 ```bash
-python -m pytest backend/tests -v    # 12 tests
+python -m pytest backend/tests -v    # 11 tests
 ```
 
 Covered: valid detection flow and response shape, unsupported type, empty upload,
@@ -128,6 +162,11 @@ annotated copies in `backend/samples/annotated/`):
 mean inference **0.56 s** (≤ 1.5 s ✅; ~0.38 s excluding the first-call warm-up) ·
 **13/13 images processed without errors (100 % ✅)**.
 
+> The table above was measured at conf ≥ 0.5. The current default in
+> `utils/detector.py` is **0.25** (with `max_det=300`, `min_size_ratio=0.005`), which
+> raises the same run from 74 to 97 detected persons by recovering distant/occluded
+> people the 0.5 cut missed — at some cost to average confidence.
+
 **Known limitation (logged failure):** the London Stadium crowd detected **0** persons
 at conf ≥ 0.5 — a distant, heavily occluded crowd. This is the classic
 "occlusion/partial visibility" failure the project asks to document; single, clear
@@ -147,9 +186,11 @@ count the people, and fill the `visible_persons` column to finalise the percenta
 
 - ✅ Backend implemented and tested (11/11): detect + history + reset, upload
   validation, perf logging, deterministic storage path, lifespan-managed model.
+- ✅ Frontend implemented: Vite + React SPA with React Router; Detection view
+  (drag-and-drop upload, sample gallery, annotated-image results with count /
+  confidence / timing, per-detection list); History view (timestamped table, date
+  filter, result limit, refresh, clear). Dev proxy wires `/api/*` to the backend.
 - ✅ 13 real-world sample images (crowds, crosswalks, night market, snow) in
   `backend/samples/` and `frontend/public/samples/`; benchmark run and README table
   populated. (Sample photos are from Wikimedia Commons under their respective CC
   licenses.)
-- ⏳ Frontend: scaffolding only — pages return `null`; the React/Vite dashboard is
-  the remaining work.
