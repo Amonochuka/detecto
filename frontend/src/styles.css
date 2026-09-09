@@ -1,245 +1,3 @@
-<<<<<<< HEAD
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-:root {
-  --bg: #0f1117;
-  --surface: #1a1d27;
-  --surface-2: #242834;
-  --border: #2e3343;
-  --text: #e4e6ed;
-  --text-muted: #8b8fa3;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --radius: 8px;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-html {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: var(--text);
-  background: var(--bg);
-  line-height: 1.5;
-}
-
-body {
-  min-height: 100vh;
-}
-
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Navbar ────────────────────────────────────── */
-
-.navbar {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-  padding: 0 2rem;
-  height: 56px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-brand {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--primary);
-  letter-spacing: -0.02em;
-}
-
-.nav-links {
-  display: flex;
-  gap: 0.25rem;
-}
-
-.nav-link {
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius);
-  text-decoration: none;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: color 0.15s, background 0.15s;
-}
-
-.nav-link:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
-.nav-link.active {
-  color: var(--primary);
-  background: rgba(59, 130, 246, 0.1);
-}
-
-/* ── Main ──────────────────────────────────────── */
-
-.main-content {
-  flex: 1;
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.page-header {
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.page-header p {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
-}
-
-/* ── Cards ─────────────────────────────────────── */
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  box-shadow: var(--shadow);
-}
-
-.card-title {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
-}
-
-/* ── Stats Row ─────────────────────────────────── */
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.stat-value {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-}
-
-.stat-value.success { color: var(--success); }
-.stat-value.primary { color: var(--primary); }
-.stat-value.warning { color: var(--warning); }
-
-/* ── Upload Zone ───────────────────────────────── */
-
-.upload-zone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 3rem 2rem;
-  text-align: center;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
-}
-
-.upload-zone:hover,
-.upload-zone.dragover {
-  border-color: var(--primary);
-  background: rgba(59, 130, 246, 0.05);
-}
-
-.upload-zone .icon {
-  font-size: 2.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.upload-zone p {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-.upload-zone .browse {
-  color: var(--primary);
-  font-weight: 600;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.upload-zone input[type="file"] {
-  display: none;
-}
-
-/* ── Sample Grid ───────────────────────────────── */
-
-.sample-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.sample-card {
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.2s, transform 0.15s;
-}
-
-.sample-card:hover {
-  border-color: var(--primary);
-  transform: translateY(-2px);
-}
-
-.sample-card.selected {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
-}
-
-.sample-card img {
-  width: 100%;
-  aspect-ratio: 4/3;
-  object-fit: cover;
-  display: block;
-}
-
-.sample-card .sample-name {
-  padding: 0.4rem 0.5rem;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ── Buttons ───────────────────────────────────── */
-
-=======
 /* === Reset === */
 *,
 *::before,
@@ -322,50 +80,66 @@ button:disabled {
   padding: 0 1.5rem;
 }
 
->>>>>>> 7a26ef4 (feat: add React entry point with BrowserRouter and global styles)
+/* === App layout === */
+.main-content {
+  flex: 1;
+  padding-top: 2rem;
+  padding-bottom: 3rem;
+}
+
+/* === Page headers === */
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.page-header p {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* === Cards === */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.card-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* === Buttons === */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-<<<<<<< HEAD
-  padding: 0.6rem 1.25rem;
-  border: none;
-  border-radius: var(--radius);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .btn-primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: #fff;
-=======
   background: var(--color-primary);
   color: #fff;
 }
 
-.btn:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled) {
   background: var(--color-primary-hover);
 }
 
 .btn-danger {
   background: var(--color-danger);
->>>>>>> 7a26ef4 (feat: add React entry point with BrowserRouter and global styles)
+  color: #fff;
 }
 
 .btn-danger:hover:not(:disabled) {
@@ -374,157 +148,6 @@ button:disabled {
 
 .btn-outline {
   background: transparent;
-<<<<<<< HEAD
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-
-.btn-outline:hover:not(:disabled) {
-  background: var(--surface-2);
-}
-
-/* ── Detection Results ─────────────────────────── */
-
-.results-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-}
-
-@media (max-width: 800px) {
-  .results-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.annotated-image-wrapper {
-  position: relative;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--surface-2);
-}
-
-.annotated-image-wrapper img {
-  width: 100%;
-  display: block;
-}
-
-.detection-list {
-  max-height: 400px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.detection-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.6rem 0.75rem;
-  background: var(--surface-2);
-  border-radius: var(--radius);
-  font-size: 0.8rem;
-}
-
-.detection-item .det-index {
-  color: var(--primary);
-  font-weight: 700;
-  margin-right: 0.75rem;
-  min-width: 1.5rem;
-}
-
-.detection-item .det-conf {
-  color: var(--success);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── History ────────────────────────────────────── */
-
-.filters-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.filters-bar input[type="date"],
-.filters-bar input[type="number"] {
-  padding: 0.5rem 0.75rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-size: 0.85rem;
-  outline: none;
-}
-
-.filters-bar input:focus {
-  border-color: var(--primary);
-}
-
-.history-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.history-table th {
-  text-align: left;
-  padding: 0.75rem;
-  border-bottom: 2px solid var(--border);
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.history-table td {
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.history-table tr:hover td {
-  background: var(--surface-2);
-}
-
-.history-table .conf-badge {
-  display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.conf-high {
-  background: rgba(34, 197, 94, 0.15);
-  color: var(--success);
-}
-
-.conf-medium {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--warning);
-}
-
-.conf-low {
-  background: rgba(239, 68, 68, 0.15);
-  color: var(--danger);
-}
-
-/* ── Loading / Error / Empty States ────────────── */
-
-.spinner {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 2.5px solid var(--border);
-  border-top-color: var(--primary);
-=======
   border: 1px solid var(--color-border);
   color: var(--color-text);
 }
@@ -538,32 +161,13 @@ button:disabled {
   font-size: 0.8rem;
 }
 
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-}
-
-.stat-value {
-  font-size: 2rem;
-  font-weight: 700;
-  font-family: var(--font-mono);
-}
-
-.stat-label {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
+/* === Loading / Error / Empty states === */
 .spinner {
-  width: 24px;
-  height: 24px;
-  border: 3px solid var(--color-border);
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid var(--color-border);
   border-top-color: var(--color-primary);
->>>>>>> 7a26ef4 (feat: add React entry point with BrowserRouter and global styles)
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
@@ -572,14 +176,14 @@ button:disabled {
   to { transform: rotate(360deg); }
 }
 
-<<<<<<< HEAD
 .loading-overlay {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   padding: 3rem;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   font-size: 0.875rem;
 }
 
@@ -588,7 +192,7 @@ button:disabled {
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: var(--radius);
   padding: 0.75rem 1rem;
-  color: var(--danger);
+  color: var(--color-danger);
   font-size: 0.85rem;
   margin-bottom: 1rem;
 }
@@ -596,7 +200,7 @@ button:disabled {
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 
 .empty-state .icon {
@@ -604,19 +208,82 @@ button:disabled {
   margin-bottom: 0.75rem;
 }
 
-/* ── Sections ──────────────────────────────────── */
-
-.section-title {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
+/* === History page === */
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
-/* ── Scrollbar ─────────────────────────────────── */
+.filters-bar input[type="date"],
+.filters-bar input[type="number"] {
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  outline: none;
+  font-family: inherit;
+}
 
+.filters-bar input:focus {
+  border-color: var(--color-primary);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.history-table th {
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.history-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.history-table tr:hover td {
+  background: var(--color-surface-hover);
+}
+
+.history-table .conf-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.conf-high {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--color-success);
+}
+
+.conf-medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-warning);
+}
+
+.conf-low {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
+}
+
+/* === Scrollbar === */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -626,12 +293,8 @@ button:disabled {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--color-border);
   border-radius: 3px;
-=======
-.error-text {
-  color: var(--color-danger);
-  font-size: 0.875rem;
 }
 
 /* === Responsive === */
@@ -639,5 +302,4 @@ button:disabled {
   .container {
     padding: 0 1rem;
   }
->>>>>>> 7a26ef4 (feat: add React entry point with BrowserRouter and global styles)
 }
