@@ -48,3 +48,31 @@ def test_reset_history_clears(client, seeded_storage):
     assert response.status_code == 200
     assert response.json()["success"] is True
     assert client.get("/api/history").json()["count"] == 0
+
+
+def test_export_history_csv(client, seeded_storage):
+    response = client.get("/api/export", params={"format": "csv"})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+
+    text = response.text
+    lines = text.strip().splitlines()
+    assert lines[0].startswith("timestamp,count,average_confidence,inference_time")
+    assert len(lines) == 3  # 1 header + 1 record x 2 boxes
+    assert "2026-01-01T12:00:00" in lines[1]
+    assert lines[1].endswith("person")
+
+
+def test_export_history_csv_empty(client, fake_storage):
+    response = client.get("/api/export")
+    assert response.status_code == 200
+    lines = response.text.strip().splitlines()
+    assert len(lines) == 1
+    assert lines[0].startswith("timestamp,count")
+
+
+def test_export_history_unsupported_format(client, seeded_storage):
+    response = client.get("/api/export", params={"format": "json"})
+    assert response.status_code == 400
+    assert response.json()["success"] is False

@@ -25,7 +25,7 @@ Two parts:
 | `frontend/` | React + Vite (JSX) | Dashboard with a "Detection" page (upload → see boxes) and a "History" page (table/graph of past detections) |
 
 > Both the backend and the frontend are **fully implemented and tested**. The backend is
-> verified by 11 tests that run without the ML stack; the frontend is a complete
+> verified by 18 tests that run without the ML stack; the frontend is a complete
 > React + Vite SPA (details in §10).
 
 ---
@@ -56,7 +56,7 @@ detecto/
 │   ├── routes/
 │   │   ├── __init__.py
 │   │   ├── detect.py            # POST /api/detect
-│   │   └── history.py           # GET /api/history, POST /api/reset
+│   │   └── history.py           # GET /api/history, GET /api/export, POST /api/reset
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── detector.py          # PersonDetector (YOLOv8 wrapper)
@@ -137,10 +137,16 @@ Flow of a request:
 | Endpoint | Behaviour |
 |----------|-----------|
 | `GET /api/history?date=YYYY-MM-DD&limit=100` | All records, optionally filtered to one day, truncated to the most recent `limit` |
+| `GET /api/export?format=csv&date=&limit=` | Bonus: downloads history as Excel-compatible CSV; `format=excel` is accepted too (returns the same CSV), anything else → 400 |
 | `POST /api/reset` | Clears all history (the project spec names a `/reset` route) |
 
 Small but important detail: `limit` uses `detections[-limit:]` which in Python weirdly
 **ignores** `0` (because `-0 == 0`), so we guard with `detections[-limit:] if limit > 0 else []`.
+
+The CSV export is flat: one row per detected person (`x1,y1,x2,y2,confidence,class`)
+prefixed by that person's detection record metadata (`timestamp,count,average_confidence,
+inference_time`). It reuses the `csv` standard-library module (no new dependency) and sets
+`Content-Disposition: attachment` so browsers save `detections.csv`.
 
 ### 3.4 `utils/detector.py` — the model wrapper
 
@@ -517,7 +523,7 @@ storage), then returns the storage for assertions.
 ```bash
 # from the repo root, after installing at least the light deps:
 python -m pytest backend/tests -v
-# Full results: 11 passed
+# Full results: 18 passed
 ```
 
 ---
@@ -583,6 +589,11 @@ now scaled back to original coordinates), a crash on grayscale images (all input
 normalized to 3-channel RGB), and a crowd under-count fixed by sizing the inference
 resolution from the image (up to 1280 px, recovering ~17× more distant people) alongside
 `max_det` + size filter (§5.8).
+
+Two **bonus features** have also been added (see §10.8): a **CSV export** of detection
+history (`GET /api/export`, Download CSV button in the History view) and an **hourly
+statistics panel** that aggregates the loaded records into a per-hour average-crowd-size
+bar chart.
 
 ---
 

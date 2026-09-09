@@ -30,3 +30,17 @@ export async function resetHistory() {
   const res = await fetch(`${API_BASE}/reset`, { method: 'POST' })
   return handleResponse(res)
 }
+
+export async function exportHistory({ date, limit = 100, format = 'csv' } = {}) {
+  const params = new URLSearchParams()
+  if (date) params.set('date', date)
+  params.set('limit', limit)
+  params.set('format', format)
+
+  const res = await fetch(`${API_BASE}/export?${params}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail || `Export failed (${res.status})`)
+  }
+  return res.blob()
+}

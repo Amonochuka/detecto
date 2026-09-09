@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchHistory, resetHistory } from "../utils/api";
+import { fetchHistory, resetHistory, exportHistory } from "../utils/api";
 
 export default function History() {
   const [records, setRecords] = useState([]);
@@ -36,6 +36,27 @@ export default function History() {
       setRecords([]);
     } catch (err) {
       setError(err.message || "Failed to clear history.");
+    }
+  }
+
+  async function handleExport() {
+    setError(null);
+    try {
+      const blob = await exportHistory({
+        date: dateFilter || undefined,
+        limit,
+        format: "csv",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `detecto-history-${dateFilter || "all"}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || "Export failed.");
     }
   }
 
@@ -86,6 +107,9 @@ export default function History() {
         <button className="btn btn-outline" onClick={loadHistory}>
           Refresh
         </button>
+        <button className="btn btn-outline" onClick={handleExport}>
+          Download CSV
+        </button>
         <button className="btn btn-danger" onClick={handleReset}>
           Clear History
         </button>
@@ -105,35 +129,38 @@ export default function History() {
           </p>
         </div>
       ) : (
-        <div className="card" style={{ overflowX: "auto" }}>
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Timestamp</th>
-                <th>People</th>
-                <th>Avg Confidence</th>
-                <th>Inference Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((rec, i) => (
-                <tr key={i}>
-                  <td style={{ color: "var(--color-text-muted)" }}>{i + 1}</td>
-                  <td>{formatDateTime(rec.timestamp)}</td>
-                  <td style={{ fontWeight: 600 }}>{rec.count}</td>
-                  <td>{confBadge(rec.average_confidence)}</td>
-                  <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {formatTime(rec.inference_time)}
-                  </td>
+        <>
+          <HourlyStats records={records} />
+          <div className="card" style={{ overflowX: "auto" }}>
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Timestamp</th>
+                  <th>People</th>
+                  <th>Avg Confidence</th>
+                  <th>Inference Time</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
-            Showing {records.length} record{records.length !== 1 && "s"}
+              </thead>
+              <tbody>
+                {records.map((rec, i) => (
+                  <tr key={i}>
+                    <td style={{ color: "var(--color-text-muted)" }}>{i + 1}</td>
+                    <td>{formatDateTime(rec.timestamp)}</td>
+                    <td style={{ fontWeight: 600 }}>{rec.count}</td>
+                    <td>{confBadge(rec.average_confidence)}</td>
+                    <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {formatTime(rec.inference_time)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
+              Showing {records.length} record{records.length !== 1 && "s"}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -145,4 +172,61 @@ function formatDateTime(iso) {
   } catch {
     return iso;
   }
+}
+
+function computeHourlyStats(records) {
+  const byHour = new Map();
+  for (const rec of records) {
+    const t = new Date(rec.timestamp);
+    if (!Number.isFinite(t.getTime()) || typeof rec.count !== "number") continue;
+    const key = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(
+      t.getDate()
+    ).padStart(2, "0")} ${String(t.getHours()).padStart(2, "0")}:00`;
+    if (!byHour.has(key)) byHour.set(key, { counts: [] });
+    byHour.get(key).counts.push(rec.count);
+  }
+  return [...byHour.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([label, { counts }]) => ({
+      label,
+      avg: counts.reduce((s, c) => s + c, 0) / counts.length,
+      samples: counts.length,
+    }));
+}
+
+function HourlyStats({ records }) {
+  const stats = computeHourlyStats(records);
+  if (stats.length === 0) return null;
+
+  const maxAvg = Math.max(...stats.map((s) => s.avg));
+  const overallAvg = stats.reduce((s, x) => s + x.avg, 0) / stats.length;
+  const peak = stats.reduce((a, b) => (b.avg > a.avg ? b : a));
+
+  return (
+    <div className="card stats-card">
+      <div className="card-title">Average Crowd Size per Hour</div>
+      <div className="hourly-chart">
+        {stats.map((s) => (
+          <div
+            className="hourly-bar-col"
+            key={s.label}
+            title={`${s.label} — avg ${s.avg.toFixed(1)} people (${s.samples} detection${
+              s.samples !== 1 ? "s" : ""
+            })`}
+          >
+            <div className="hourly-bar-val">{s.avg.toFixed(1)}</div>
+            <div
+              className="hourly-bar"
+              style={{ height: `${Math.max(4, (s.avg / maxAvg) * 92)}%` }}
+            />
+            <div className="hourly-bar-label">{s.label.slice(11)}</div>
+          </div>
+        ))}
+      </div>
+      <div className="stats-summary">
+        Avg across recorded hours: <strong>{overallAvg.toFixed(1)}</strong> people/h · Peak
+        hour: <strong>{peak.label}</strong> ({peak.avg.toFixed(1)} people avg)
+      </div>
+    </div>
+  );
 }

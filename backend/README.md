@@ -256,6 +256,23 @@ Returns past detection records from storage.
 }
 ```
 
+### `GET /api/export?format=csv&date=YYYY-MM-DD&limit=100`
+Downloads detection history as **Excel-compatible CSV** (bonus feature).
+
+- `format` (optional, default `csv`) — `csv` or `excel`; both return CSV bytes (Excel opens
+  CSV directly). Anything else → `400`.
+- `date` / `limit` — same filters as `GET /api/history`.
+
+The CSV has one row per detected person, prefixed by its detection record's metadata:
+`timestamp, count, average_confidence, inference_time, x1, y1, x2, y2, confidence, class`.
+
+```bash
+curl -OJ "http://localhost:8000/api/export?format=csv&limit=500"
+```
+
+The response sets `Content-Disposition: attachment` so browsers/download tools save it as
+`detections.csv`.
+
 ### `POST /api/reset`
 Clears all stored detection history. Returns `{"success": true, "message": "Detection history cleared"}`.
 

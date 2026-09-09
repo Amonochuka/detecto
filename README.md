@@ -33,7 +33,9 @@ to review past detections with date filters and one-click reset.
     (auto-scaled ms/s).
   - History view: table of timestamped detections (people count, avg confidence badge,
     inference time), a date filter (YYYY-MM-DD), a result limit (default 50), refresh,
-    and a guarded Clear History button backed by `POST /api/reset`.
+    download-to-CSV export, a guarded Clear History button backed by `POST /api/reset`,
+    and a **bonus** hourly statistics panel (average crowd size per hour as a bar chart
+    computed from the loaded records).
 
 See [EXPLAINED.md](EXPLAINED.md) for a full walkthrough of the code, the changes, why
 they were made, and an explanation of every test.
@@ -97,6 +99,7 @@ Previews of the sample set:
 | `GET /health` | Health check |
 | `POST /api/detect` | Upload an image (`file` field, JPEG/PNG, ≤ 15 MB). Returns `count`, `detections` (bbox + confidence), `average_confidence`, `inference_time`, `annotated_image` (base64) |
 | `GET /api/history?date=YYYY-MM-DD&limit=100` | Past detections, optional date filter, most recent `limit` |
+| `GET /api/export?format=csv&date=YYYY-MM-DD&limit=100` | Download detection history as Excel-compatible CSV (`format=csv` or `format=excel`) |
 | `POST /api/reset` | Clear detection history |
 
 Example detect call:
@@ -114,7 +117,7 @@ Backend tests run against fake detector/storage, so **no ML stack is required** 
 them (only fastapi, pillow, numpy, python-multipart, pytest, httpx).
 
 ```bash
-python -m pytest backend/tests -v    # 11 tests
+python -m pytest backend/tests -v    # 18 tests
 ```
 
 Covered: valid detection flow and response shape, unsupported type, empty upload,
@@ -191,12 +194,14 @@ successful crosswalk detection with 13 people boxed, and the History view):
 
 ## Current status
 
-- ✅ Backend implemented and tested (11/11): detect + history + reset, upload
+- ✅ Backend implemented and tested (18/18): detect + history + export + reset, upload
   validation, perf logging, deterministic storage path, lifespan-managed model.
 - ✅ Frontend implemented: Vite + React SPA with React Router; Detection view
   (drag-and-drop upload, sample gallery, annotated-image results with count /
   confidence / timing, per-detection list); History view (timestamped table, date
-  filter, result limit, refresh, clear). Dev proxy wires `/api/*` to the backend.
+  filter, result limit, refresh, CSV export, clear). Dev proxy wires `/api/*` to the backend.
+- ✅ Bonus features: detection-history CSV export (`/api/export`) with a Download CSV
+  button, and an hourly average-crowd-size bar chart on the History page.
 - ✅ 13 real-world sample images (crowds, crosswalks, night market, snow) in
   `backend/samples/` and `frontend/public/samples/`; benchmark run and README table
   populated. (Sample photos are from Wikimedia Commons under their respective CC
